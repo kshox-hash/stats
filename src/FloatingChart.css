@@ -1,0 +1,91 @@
+.float-win {
+  position: fixed;
+  background: #ffffff;
+  border: 1px solid #dcdce8;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  overflow: hidden;
+  animation: float-in 0.18s ease;
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Header — zona de drag */
+.float-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f7f7fc;
+  border-bottom: 1px solid #dcdce8;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+.float-header:active { cursor: grabbing; }
+
+.float-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.float-drag-icon {
+  font-size: 14px;
+  color: #aaa;
+  letter-spacing: -1px;
+}
+
+.float-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.float-actions button {
+  background: transparent;
+  border: 1px solid #dcdce8;
+  color: #8080a8;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.float-actions button:hover { border-color: #0078D4; color: #0078D4; background: rgba(0,120,212,0.06); }
+.float-actions button.close:hover { border-color: #E04837; color: #E04837; background: rgba(224,72,55,0.06); }
+
+/* Cuerpo */
+.float-body {
+  overflow: hidden;
+  padding: 10px 8px 4px;
+  flex: 1;
+}
+
+/* Handle de resize en esquina inferior derecha */
+.float-resize {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, #c0c0d8 50%);
+  border-radius: 0 0 10px 0;
+}
+.float-resize:hover {
+  background: linear-gradient(135deg, transparent 50%, #0078D4 50%);
+}

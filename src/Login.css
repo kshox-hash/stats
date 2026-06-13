@@ -1,0 +1,116 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f2f8;
+  padding: 20px;
+}
+
+.login-card {
+  background: #ffffff;
+  border: 1px solid #dcdce8;
+  border-radius: 14px;
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 28px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.login-card h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 6px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.login-sub {
+  font-size: 13px;
+  color: #8080a8;
+  margin: 0 0 28px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5050708;
+  letter-spacing: 0.3px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #505070;
+}
+
+.field input {
+  background: #f7f7fc;
+  border: 1px solid #dcdce8;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #1a1a2e;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.field input::placeholder { color: #b0b0cc; }
+.field input:focus {
+  border-color: #0078D4;
+  box-shadow: 0 0 0 3px rgba(0,120,212,0.1);
+  background: #fff;
+}
+
+.login-error {
+  background: rgba(224, 72, 55, 0.07);
+  border: 1px solid rgba(224, 72, 55, 0.25);
+  color: #c03020;
+  font-size: 13px;
+  padding: 9px 14px;
+  border-radius: 7px;
+  margin-bottom: 16px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.btn-login {
+  width: 100%;
+  background: #F2C811;
+  color: #1a1a00;
+  border: none;
+  padding: 11px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 8px rgba(242,200,17,0.4);
+}
+.btn-login:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(242,200,17,0.5);
+}
+.btn-login:active:not(:disabled) { transform: translateY(0); }
+.btn-login:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }

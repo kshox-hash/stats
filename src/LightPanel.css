@@ -1,0 +1,119 @@
+.lp {
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: #fff;
+  border: 1px solid #d4d4e6;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  will-change: transform;
+  contain: layout style;
+  overflow: hidden;
+}
+
+.lp:hover {
+  border-color: #b8b8d8;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+
+/* Ghost — contorno durante resize */
+.lp-ghost {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  border: 2px dashed #0078D4;
+  border-radius: 4px;
+  background: rgba(0,120,212,.03);
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform, width, height;
+}
+
+/* Overlay — aparece al hover: drag handle + botones */
+.lp-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 8px;
+  background: linear-gradient(to bottom, rgba(245,245,251,0.96) 55%, transparent);
+  opacity: 0;
+  z-index: 10;
+  cursor: grab;
+  user-select: none;
+  border-radius: 4px 4px 0 0;
+  transition: opacity 0.15s;
+}
+.lp-overlay:active { cursor: grabbing; }
+.lp:hover .lp-overlay { opacity: 1; }
+
+.lp-overlay-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-overlay-btns {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.lp-overlay-btns button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 12px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.lp-overlay-btns button:hover { color: #0078D4; background: rgba(0,120,212,.08); }
+.lp-overlay-btns .lp-close:hover { color: #E04837; background: rgba(224,72,55,.08); }
+
+/* Cuerpo — ocupa toda la altura del panel */
+.lp-body {
+  padding: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Handle de resize — esquina inferior derecha */
+.lp-resize {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, #c8c8e0 50%);
+  border-radius: 0 0 4px 0;
+  z-index: 11;
+}
+.lp-resize:hover {
+  background: linear-gradient(135deg, transparent 50%, #0078D4 50%);
+}
+
+/* Nota de agregación */
+.agg-note {
+  display: block;
+  font-size: 10px;
+  color: #aaa;
+  padding: 0 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

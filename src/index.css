@@ -1,0 +1,13 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+
+.app-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f2f8;
+  color: #8080a8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
