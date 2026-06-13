@@ -28,7 +28,6 @@ const CHART_GROUPS = [
   { label: 'Tendencia',   ids: ['line', 'area'] },
   { label: 'Proporción',  ids: ['pie', 'funnel', 'treemap'] },
   { label: 'Relación',    ids: ['scatter'] },
-  { label: 'KPI',         ids: ['gauge'] },
 ]
 const CHART_META = {
   bar:       'Barras',
@@ -264,8 +263,7 @@ export default function App() {
   }
 
   const exportPDF = async () => {
-    if (!mainRef.current) return
-    const dataUrl = await toPng(mainRef.current, { pixelRatio: 1.5, backgroundColor: '#f2f2f8' })
+    const dataUrl = await toPng(document.body, { pixelRatio: 1.5, backgroundColor: '#f2f2f8' })
     const img = new Image()
     img.onload = () => {
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [img.width, img.height] })
