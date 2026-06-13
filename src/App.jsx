@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react'
 import * as XLSX from 'xlsx'
-import html2canvas from 'html2canvas'
+import { toPng } from 'html-to-image'
 import jsPDF from 'jspdf'
 import { saveAs } from 'file-saver'
 import { useAuth } from './AuthContext'
@@ -265,18 +265,21 @@ export default function App() {
 
   const exportPDF = async () => {
     if (!mainRef.current) return
-    const canvas  = await html2canvas(mainRef.current, { scale: 1.5, backgroundColor: '#f2f2f8' })
-    const imgData = canvas.toDataURL('image/png')
-    const pdf     = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] })
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
-    pdf.save('dashboard.pdf')
+    const dataUrl = await toPng(mainRef.current, { pixelRatio: 1.5, backgroundColor: '#f2f2f8' })
+    const img = new Image()
+    img.onload = () => {
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [img.width, img.height] })
+      pdf.addImage(dataUrl, 'PNG', 0, 0, img.width, img.height)
+      pdf.save('dashboard.pdf')
+    }
+    img.src = dataUrl
   }
 
   const downloadChart = async (refKey) => {
     const el = chartRefs.current[refKey]
     if (!el) return
-    const canvas = await html2canvas(el, { backgroundColor: '#fff', scale: 2 })
-    canvas.toBlob(blob => saveAs(blob, `grafico-${refKey}.png`))
+    const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#fff' })
+    saveAs(dataUrl, `grafico-${refKey}.png`)
   }
 
   // ── Construir gráfico ──────────────────────────────────────────────────────
