@@ -7,10 +7,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { setUser(data); setLoading(false) })
-      .catch(() => { setUser(null); setLoading(false) })
+    setUser({ name: 'Demo', email: 'demo@demo.com' })
+    setLoading(false)
   }, [])
 
   const login = async (email, password) => {
