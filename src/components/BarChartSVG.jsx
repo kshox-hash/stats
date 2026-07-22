@@ -23,7 +23,8 @@ function fmtV(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
 }
 
-export default function BarChartSVG({ data, labelCol, numericCols, clickFilter, onBarClick }) {
+export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, clickFilter, onBarClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const outerRef  = useRef(null)
   const wrapRef   = useRef(null)
   const [wrapW, setWrapW]     = useState(600)
@@ -40,7 +41,8 @@ export default function BarChartSVG({ data, labelCol, numericCols, clickFilter, 
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !numericCols.length) return null
+  if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const nS = numericCols.length
   const nG = data.length
@@ -94,12 +96,19 @@ export default function BarChartSVG({ data, labelCol, numericCols, clickFilter, 
                     const v     = Math.max(0, Number(row[col]) || 0)
                     const bh    = Math.max(1, (v / yMax) * cH)
                     const bx    = gStartX + si * (barW + barGap)
-                    const color = nS === 1 ? PALETTE[gi % PALETTE.length] : PALETTE[si % PALETTE.length]
+                    const color = nS === 1 ? colors[gi % colors.length] : colors[si % colors.length]
                     return (
-                      <rect key={col} x={bx} y={cH - bh} width={barW} height={bh}
-                        fill={color} fillOpacity={op} rx={2} ry={2}
-                        className="svg-bar"
-                        style={{ animationDelay: delay + 's' }} />
+                      <g key={col}>
+                        <rect x={bx} y={cH - bh} width={barW} height={bh}
+                          fill={color} fillOpacity={op} rx={2} ry={2}
+                          className="svg-bar"
+                          style={{ animationDelay: delay + 's' }} />
+                        {showLabels && v > 0 && (
+                          <text x={bx + barW / 2} y={cH - bh - 4} textAnchor="middle" fontSize={9} fill="#888">
+                            {fmtV(v)}
+                          </text>
+                        )}
+                      </g>
                     )
                   })}
                 </g>
@@ -128,7 +137,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, clickFilter, 
         <div style={{ display: 'flex', gap: 10, padding: '3px 8px', flexWrap: 'wrap', flexShrink: 0 }}>
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888' }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: PALETTE[i % PALETTE.length], display: 'inline-block' }} />
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: colors[i % colors.length], display: 'inline-block' }} />
               {col}
             </div>
           ))}
@@ -147,7 +156,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, clickFilter, 
           <div style={{ color: '#fff', fontWeight: 600, marginBottom: 3 }}>{tooltip.label}</div>
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: nS === 1 ? PALETTE[0] : PALETTE[i % PALETTE.length], display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: nS === 1 ? colors[0] : colors[i % colors.length], display: 'inline-block', flexShrink: 0 }} />
               {col}: <strong style={{ color: '#fff' }}>{fmtV(Number(tooltip.row[col]) || 0)}</strong>
             </div>
           ))}

@@ -24,7 +24,8 @@ function fmtV(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
 }
 
-export default function WaterfallChartSVG({ data, labelCol, valueCol, clickFilter, onBarClick }) {
+export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, showLabels, clickFilter, onBarClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const outerRef = useRef(null)
   const wrapRef  = useRef(null)
   const [wrapW, setWrapW]     = useState(600)
@@ -39,7 +40,8 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, clickFilte
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !valueCol) return null
+  if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   // Compute waterfall positions
   let cum = 0
@@ -106,7 +108,7 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, clickFilte
               const bx     = gCx - barW / 2
               const barTop = yPx(d.base + d.amount)
               const barH   = Math.max(1, yPx(d.base) - barTop)
-              const color  = d.isNeg ? PALETTE[3] : PALETTE[0]
+              const color  = d.isNeg ? (colors[3] ?? colors[colors.length - 1]) : colors[0]
               const op     = cellOp(d.label)
               return (
                 <g key={gi} style={{ cursor: 'pointer' }}
@@ -118,6 +120,11 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, clickFilte
                     fill={color} fillOpacity={op} rx={2}
                     className="svg-bar"
                     style={{ animationDelay: Math.min(gi * 0.018, 0.25) + 's' }} />
+                  {showLabels && (
+                    <text x={bx + barW / 2} y={barTop - 4} textAnchor="middle" fontSize={9} fill="#888">
+                      {d.isNeg ? '-' : ''}{fmtV(d.amount)}
+                    </text>
+                  )}
                 </g>
               )
             })}

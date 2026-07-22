@@ -17,6 +17,7 @@ import TreemapSVG from './components/TreemapSVG'
 import GaugeSVG from './components/GaugeSVG'
 import TabBar from './components/TabBar'
 import FilterPanel from './components/FilterPanel'
+import ChartConfig, { PALETTES } from './components/ChartConfig'
 import './App.css'
 
 // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -61,10 +62,21 @@ function isDateLike(v) {
   return /\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(v) && !isNaN(Date.parse(v))
 }
 
+// Números guardados como texto en el Excel (columna con formato "Texto") también cuentan como numéricos
+function isNumericLike(v) {
+  if (typeof v === 'number') return isFinite(v)
+  if (typeof v !== 'string') return false
+  const s = v.trim()
+  return s !== '' && isFinite(Number(s))
+}
+
 function detectColumns(rows) {
   if (!rows.length) return { labelCol: null, numericCols: [], categoricalCols: [], dateCols: [] }
-  const keys     = Object.keys(rows[0])
-  const numeric  = keys.filter(k => rows.some(r => typeof r[k] === 'number'))
+  const keys    = Object.keys(rows[0])
+  const numeric = keys.filter(k => {
+    const vals = rows.map(r => r[k]).filter(v => v !== '' && v != null)
+    return vals.length > 0 && vals.every(isNumericLike)
+  })
   const dateCols = keys.filter(k => !numeric.includes(k) && rows.some(r => isDateLike(r[k])))
   const categ    = keys.filter(k => !numeric.includes(k) && !dateCols.includes(k))
   const label    = categ[0] ?? keys[0]
@@ -106,7 +118,7 @@ function aggregateRows(rows, labelCol, numericCols, limit) {
 
 
 // ── Estado inicial de página ─────────────────────────────────────────────────
-const freshPage = () => ({ charts: [] })
+const freshPage = () => ({ charts: [], chartConfigs: {} })
 
 let pageCounter = 1
 
@@ -143,6 +155,7 @@ export default function App() {
 
   // UI
   const [expanded, setExpanded]           = useState(null)
+  const [configOpen, setConfigOpen]       = useState(null) // id del gráfico cuya config está abierta
   const [showFilters, setShowFilters]     = useState(false)
   const fileInputRef = useRef(null)
   const chartRefs    = useRef({})
@@ -154,6 +167,12 @@ export default function App() {
   const updatePg = (fn) => setPageData(prev => ({
     ...prev,
     [activePage]: fn(prev[activePage] ?? freshPage())
+  }))
+
+  // ── Config por gráfico (eje, series, paleta, etiquetas, tendencia) ──────────
+  const updateChartConfig = (id, patch) => updatePg(pg => ({
+    ...pg,
+    chartConfigs: { ...pg.chartConfigs, [id]: { ...(pg.chartConfigs?.[id] || {}), ...patch } },
   }))
 
   // ── Datos filtrados ────────────────────────────────────────────────────────
@@ -214,14 +233,25 @@ export default function App() {
   }, [])
 
   // ── Gráficos ───────────────────────────────────────────────────────────────
-  const toggleChart = (id) => updatePg(pg => ({
-    ...pg,
-    charts: pg.charts.includes(id) ? pg.charts.filter(c => c !== id) : [...pg.charts, id],
-  }))
+  const toggleChart = (id) => {
+    const isAdding = !pg.charts.includes(id)
+    updatePg(pg => ({
+      ...pg,
+      charts: isAdding ? [...pg.charts, id] : pg.charts.filter(c => c !== id),
+    }))
+    if (isAdding) {
+      setPanelPos(prev => {
+        if (prev[id]) return prev
+        const step    = 36
+        const cascade = pg.charts.length % 8
+        return { ...prev, [id]: { x: 60 + cascade * step, y: 70 + cascade * step } }
+      })
+    }
+  }
 
   // ── Filtros ────────────────────────────────────────────────────────────────
-  const applyFilter = (value) =>
-    setClickFilter(prev => prev?.value === String(value) ? null : { col: labelCol, value: String(value) })
+  const applyFilter = (col, value) =>
+    setClickFilter(prev => (prev?.col === col && prev?.value === String(value)) ? null : { col, value: String(value) })
 
   const toggleSlicer = (col, val) => {
     if (val === null) { setSlicerFilters(prev => ({ ...prev, [col]: [] })); return }
@@ -282,122 +312,139 @@ export default function App() {
 
   // ── Construir gráfico ──────────────────────────────────────────────────────
   function buildChart(id, fullscreen = false) {
+    // Config propia del gráfico (eje/series/paleta/etiquetas/tendencia) — cae al detectado automáticamente si no hay config
+    const cfg               = pg.chartConfigs?.[id] || {}
+    const chartLabelCol     = (cfg.xCol && columns.includes(cfg.xCol)) ? cfg.xCol : labelCol
+    const cfgYCols          = (cfg.yCols || []).filter(c => numericCols.includes(c))
+    const chartNumericCols  = cfgYCols.length ? cfgYCols : numericCols
+    const palette           = (cfg.palette && cfg.palette !== 'default') ? PALETTES[cfg.palette] : undefined
+    const showLabels        = !!cfg.showLabels
+    const trendLine         = !!cfg.trendLine
+    const onClick           = (value) => applyFilter(chartLabelCol, value)
 
     const aggNote = (original, agg) => original > agg.length
-      ? <span className="agg-note">Agrupado por {labelCol} · {agg.length} categorías de {original} filas</span>
+      ? <span className="agg-note">Agrupado por {chartLabelCol} · {agg.length} categorías de {original} filas</span>
       : null
 
     switch (id) {
 
       case 'bar': {
-        const agg = aggregateRows(chartRows, labelCol, numericCols, 60)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <BarChartSVG data={agg} labelCol={labelCol} numericCols={numericCols}
-                clickFilter={clickFilter} onBarClick={applyFilter} />
+              <BarChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
+                palette={palette} showLabels={showLabels}
+                clickFilter={clickFilter} onBarClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'waterfall': {
-        const col = numericCols[0]
+        const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, labelCol, [col], 60)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 60)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <WaterfallChartSVG data={agg} labelCol={labelCol} valueCol={col}
-                clickFilter={clickFilter} onBarClick={applyFilter} />
+              <WaterfallChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
+                palette={palette} showLabels={showLabels}
+                clickFilter={clickFilter} onBarClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'line': {
-        const agg = aggregateRows(chartRows, labelCol, numericCols, 80)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <LineChartSVG data={agg} labelCol={labelCol} numericCols={numericCols}
-                clickFilter={clickFilter} onPointClick={applyFilter} />
+              <LineChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
+                palette={palette} showLabels={showLabels} trendLine={trendLine}
+                clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'area': {
-        const agg = aggregateRows(chartRows, labelCol, numericCols, 80)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <AreaChartSVG data={agg} labelCol={labelCol} numericCols={numericCols}
-                clickFilter={clickFilter} onPointClick={applyFilter} />
+              <AreaChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
+                palette={palette} showLabels={showLabels} trendLine={trendLine}
+                clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'pie': {
-        const col = numericCols[0]
+        const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, labelCol, [col], 12)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 12)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <PieChartSVG data={agg} labelCol={labelCol} valueCol={col}
-                clickFilter={clickFilter} onSliceClick={applyFilter} />
+              <PieChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
+                palette={palette}
+                clickFilter={clickFilter} onSliceClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'funnel': {
-        const col = numericCols[0]
+        const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, labelCol, [col], 10)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 10)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <FunnelChartSVG data={agg} labelCol={labelCol} valueCol={col}
-                clickFilter={clickFilter} onSliceClick={applyFilter} />
+              <FunnelChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
+                palette={palette}
+                clickFilter={clickFilter} onSliceClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'treemap': {
-        const col = numericCols[0]
+        const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, labelCol, [col], 30)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 30)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <TreemapSVG data={agg} labelCol={labelCol} valueCol={col}
-                clickFilter={clickFilter} onCellClick={applyFilter} />
+              <TreemapSVG data={agg} labelCol={chartLabelCol} valueCol={col}
+                palette={palette}
+                clickFilter={clickFilter} onCellClick={onClick} />
             </div>
           </div>
         )
       }
 
       case 'scatter': {
-        if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+        if (!chartNumericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
         return (
-          <ScatterChartSVG data={chartRows} labelCol={labelCol} numericCols={numericCols}
-            clickFilter={clickFilter} onPointClick={applyFilter} />
+          <ScatterChartSVG data={chartRows} labelCol={chartLabelCol} numericCols={chartNumericCols}
+            palette={palette} trendLine={trendLine}
+            clickFilter={clickFilter} onPointClick={onClick} />
         )
       }
 
       case 'gauge': {
-        const col      = numericCols[0]
+        const col      = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
         const value    = filteredRows.reduce((s, r) => s + (Number(r[col]) || 0), 0)
         const maxValue = rows.reduce((s, r) => s + (Number(r[col]) || 0), 0)
@@ -569,6 +616,7 @@ export default function App() {
           icon={<ChartIcon type={id} active size={14} />}
           onClose={() => toggleChart(id)}
           onExpand={() => setExpanded(id)}
+          onConfig={() => setConfigOpen(id)}
           initialPos={panelPos[id]}
           onDragEnd={p => setPanelPos(prev => ({ ...prev, [id]: p }))}
           zIndex={getZIndex(id)}
@@ -578,6 +626,28 @@ export default function App() {
           </div>
         </LightPanel>
       ))}
+
+      {/* ── Modal de configuración de gráfico (eje, series, paleta, etiquetas, tendencia) ── */}
+      {configOpen && (
+        <div className="modal-overlay" onClick={() => setConfigOpen(null)}>
+          <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="card-title">
+                <ChartIcon type={configOpen} active size={16} />
+                Configurar {CHART_META[configOpen]}
+              </span>
+              <button className="action-btn close" onClick={() => setConfigOpen(null)}>✕</button>
+            </div>
+            <ChartConfig
+              chartId={configOpen}
+              config={pg.chartConfigs?.[configOpen] || {}}
+              columns={columns}
+              numericCols={numericCols}
+              onChange={patch => updateChartConfig(configOpen, patch)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Modal fullscreen ── */}
       {expanded && (

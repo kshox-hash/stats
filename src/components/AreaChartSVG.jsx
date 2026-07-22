@@ -34,7 +34,21 @@ function smoothPath(pts, t = 0.35) {
   return d
 }
 
-export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter, onPointClick }) {
+// Regresión lineal simple (mínimos cuadrados) sobre índice → valor
+function linearRegression(vals) {
+  const n = vals.length
+  if (n < 2) return null
+  let sx = 0, sy = 0, sxy = 0, sxx = 0
+  vals.forEach((y, x) => { sx += x; sy += y; sxy += x * y; sxx += x * x })
+  const denom = n * sxx - sx * sx
+  if (denom === 0) return null
+  const m = (n * sxy - sx * sy) / denom
+  const b = (sy - m * sx) / n
+  return { m, b }
+}
+
+export default function AreaChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, clickFilter, onPointClick }) {
+  const colors   = palette && palette.length ? palette : PALETTE
   const wrapRef  = useRef(null)
   const uid      = useRef(Math.random().toString(36).slice(2))
   const [size, setSize]         = useState({ w: 600, h: 260 })
@@ -50,7 +64,8 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !numericCols.length) return null
+  if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const legendH = numericCols.length > 1 ? 22 : 0
   const svgW = size.w, svgH = size.h - legendH
@@ -78,8 +93,8 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
         <defs>
           {numericCols.map((_, si) => (
             <linearGradient key={si} id={`ag-${uid.current}-${si}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor={PALETTE[si % PALETTE.length]} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={PALETTE[si % PALETTE.length]} stopOpacity={0.02} />
+              <stop offset="0%"   stopColor={colors[si % colors.length]} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={colors[si % colors.length]} stopOpacity={0.02} />
             </linearGradient>
           ))}
         </defs>
@@ -98,7 +113,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
             const pts   = data.map((row, i) => ({ x: xPx(i), y: yPx(Number(row[col]) || 0) }))
             const line  = smoothPath(pts)
             const area  = `${line} L${pts[pts.length-1].x},${cH} L${pts[0].x},${cH} Z`
-            const color = PALETTE[si % PALETTE.length]
+            const color = colors[si % colors.length]
             const dash  = DASHES[si % DASHES.length]
             return (
               <g key={col}>
@@ -112,15 +127,36 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
             )
           })}
 
+          {/* Línea de tendencia (regresión lineal) por serie */}
+          {trendLine && numericCols.map((col, si) => {
+            const reg = linearRegression(data.map(row => Number(row[col]) || 0))
+            if (!reg) return null
+            const x1 = xPx(0), x2 = xPx(n - 1)
+            const y1 = yPx(reg.b), y2 = yPx(reg.m * (n - 1) + reg.b)
+            return (
+              <line key={`trend-${col}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={colors[si % colors.length]} strokeWidth={1.5}
+                strokeDasharray="5 4" opacity={0.6} />
+            )
+          })}
+
           {/* Puntos */}
           {n <= 80 && numericCols.map((col, si) => {
-            const color = PALETTE[si % PALETTE.length]
-            return data.map((row, i) => (
-              <circle key={`${si}-${i}`} cx={xPx(i)} cy={yPx(Number(row[col]) || 0)}
-                r={i === selIdx ? 6 : i === hoverIdx ? 4 : 2.5}
-                fill={color} stroke="#fff" strokeWidth={i === selIdx ? 2 : 1}
-                style={{ transition: 'r 0.1s' }} />
-            ))
+            const color = colors[si % colors.length]
+            return data.map((row, i) => {
+              const v = Number(row[col]) || 0
+              return (
+                <g key={`${si}-${i}`}>
+                  <circle cx={xPx(i)} cy={yPx(v)}
+                    r={i === selIdx ? 6 : i === hoverIdx ? 4 : 2.5}
+                    fill={color} stroke="#fff" strokeWidth={i === selIdx ? 2 : 1}
+                    style={{ transition: 'r 0.1s' }} />
+                  {showLabels && (
+                    <text x={xPx(i)} y={yPx(v) - 8} textAnchor="middle" fontSize={9} fill="#888">{fmtV(v)}</text>
+                  )}
+                </g>
+              )
+            })
           })}
 
           {hoverIdx != null && (
@@ -162,7 +198,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
               <svg width={24} height={10}><line x1={0} y1={5} x2={24} y2={5}
-                stroke={PALETTE[i % PALETTE.length]} strokeWidth={2}
+                stroke={colors[i % colors.length]} strokeWidth={2}
                 strokeDasharray={DASHES[i % DASHES.length]} strokeLinecap="round" /></svg>
               {col}
             </div>
@@ -179,7 +215,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, clickFilter,
           <div style={{ color: '#fff', fontWeight: 600, marginBottom: 3 }}>{String(tooltip.row[labelCol] ?? '')}</div>
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: PALETTE[i % PALETTE.length], display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors[i % colors.length], display: 'inline-block', flexShrink: 0 }} />
               {col}: <strong style={{ color: '#fff' }}>{fmtV(Number(tooltip.row[col]) || 0)}</strong>
             </div>
           ))}

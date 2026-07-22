@@ -4,8 +4,14 @@ const AGGS = ['sum', 'avg', 'max', 'min', 'count']
 const AGG_LABELS = { sum: 'Suma', avg: 'Prom', max: 'Máx', min: 'Mín', count: 'Cant' }
 const AGG_FULL   = { sum: 'Suma', avg: 'Promedio', max: 'Máximo', min: 'Mínimo', count: 'Conteo' }
 
+function toNum(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v))) return Number(v)
+  return null
+}
+
 function compute(rows, col, agg) {
-  const vals = rows.map(r => r[col]).filter(v => typeof v === 'number')
+  const vals = rows.map(r => toNum(r[col])).filter(v => v !== null)
   if (!vals.length) return 0
   switch (agg) {
     case 'sum':   return vals.reduce((a, b) => a + b, 0)

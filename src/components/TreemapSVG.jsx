@@ -33,7 +33,8 @@ function layout(items, rect, result = []) {
   return result
 }
 
-export default function TreemapSVG({ data, labelCol, valueCol, clickFilter, onCellClick }) {
+export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFilter, onCellClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 500, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -48,14 +49,15 @@ export default function TreemapSVG({ data, labelCol, valueCol, clickFilter, onCe
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !valueCol) return null
+  if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const items = data
     .map((row, i) => ({ label: String(row[labelCol] ?? ''), value: Math.max(0, Number(row[valueCol]) || 0), i }))
     .filter(d => d.value > 0)
     .sort((a, b) => b.value - a.value)
 
-  if (!items.length) return null
+  if (!items.length) return <p className="chart-msg">Los valores son todos cero — no hay nada que graficar.</p>
 
   const { w, h } = size
   const PAD = 2
@@ -75,7 +77,7 @@ export default function TreemapSVG({ data, labelCol, valueCol, clickFilter, onCe
           const isSel  = clickFilter && String(label) === String(clickFilter.value)
           const isHov  = hovIdx === i
           const op     = !clickFilter ? 1 : isSel ? 1 : 0.25
-          const color  = PALETTE[i % PALETTE.length]
+          const color  = colors[i % colors.length]
           const showLbl  = cw > 40 && ch > 22
           const showVal  = cw > 55 && ch > 38
           const fontSize = Math.max(9, Math.min(13, cw / 8))

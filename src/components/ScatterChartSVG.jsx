@@ -25,7 +25,21 @@ function fmtV(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(2)
 }
 
-export default function ScatterChartSVG({ data, labelCol, numericCols, clickFilter, onPointClick }) {
+// Regresión lineal simple (mínimos cuadrados)
+function linearRegression(points) {
+  const n = points.length
+  if (n < 2) return null
+  let sx = 0, sy = 0, sxy = 0, sxx = 0
+  points.forEach(([x, y]) => { sx += x; sy += y; sxy += x * y; sxx += x * x })
+  const denom = n * sxx - sx * sx
+  if (denom === 0) return null
+  const m = (n * sxy - sx * sy) / denom
+  const b = (sy - m * sx) / n
+  return { m, b }
+}
+
+export default function ScatterChartSVG({ data, labelCol, numericCols, palette, trendLine, clickFilter, onPointClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const wrapRef = useRef(null)
   const [size, setSize]       = useState({ w: 600, h: 300 })
   const [tooltip, setTooltip] = useState(null)
@@ -43,7 +57,8 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, clickFilt
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !numericCols.length) return null
+  if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const xCol = numericCols[0]
   const yCol = numericCols[1] ?? numericCols[0]
@@ -91,6 +106,16 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, clickFilt
           <line x1={0} x2={cW} y1={cH} y2={cH} stroke="#e0e0ee" />
           <line x1={0} x2={0}  y1={0}  y2={cH} stroke="#e0e0ee" />
 
+          {trendLine && (() => {
+            const reg = linearRegression(xVals.map((x, i) => [x, yVals[i]]))
+            if (!reg) return null
+            const y1 = reg.m * xMin + reg.b, y2 = reg.m * xMax + reg.b
+            return (
+              <line x1={xPx(xMin)} y1={yPx(y1)} x2={xPx(xMax)} y2={yPx(y2)}
+                stroke="#333" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.55} />
+            )
+          })()}
+
           {data.map((row, i) => {
             const cx    = xPx(Number(row[xCol]) || 0)
             const cy    = yPx(Number(row[yCol]) || 0)
@@ -100,7 +125,7 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, clickFilt
             return (
               <circle key={i} cx={cx} cy={cy}
                 r={isSel ? 8 : 6}
-                fill={PALETTE[i % PALETTE.length]}
+                fill={colors[i % colors.length]}
                 fillOpacity={op}
                 stroke={isSel ? '#fff' : 'none'}
                 strokeWidth={isSel ? 2.5 : 0}

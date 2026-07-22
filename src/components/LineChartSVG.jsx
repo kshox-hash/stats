@@ -34,7 +34,21 @@ function smoothPath(pts, t = 0.35) {
   return d
 }
 
-export default function LineChartSVG({ data, labelCol, numericCols, clickFilter, onPointClick }) {
+// Regresión lineal simple (mínimos cuadrados) sobre índice → valor
+function linearRegression(vals) {
+  const n = vals.length
+  if (n < 2) return null
+  let sx = 0, sy = 0, sxy = 0, sxx = 0
+  vals.forEach((y, x) => { sx += x; sy += y; sxy += x * y; sxx += x * x })
+  const denom = n * sxx - sx * sx
+  if (denom === 0) return null
+  const m = (n * sxy - sx * sy) / denom
+  const b = (sy - m * sx) / n
+  return { m, b }
+}
+
+export default function LineChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, clickFilter, onPointClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const wrapRef  = useRef(null)
   const svgRef   = useRef(null)
   const dragRef  = useRef(null)
@@ -54,7 +68,8 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
 
   useEffect(() => { setAnimKey(k => k + 1); setXZoom(null) }, [clickFilter?.value])
 
-  if (!data.length || !numericCols.length) return null
+  if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const legendH = numericCols.length > 1 ? 22 : 0
   const svgW = size.w, svgH = size.h - legendH
@@ -131,8 +146,8 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
         <defs>
           {numericCols.map((_, si) => (
             <linearGradient key={si} id={`lg-${uid.current}-${si}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor={PALETTE[si % PALETTE.length]} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={PALETTE[si % PALETTE.length]} stopOpacity={0.01} />
+              <stop offset="0%"   stopColor={colors[si % colors.length]} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={colors[si % colors.length]} stopOpacity={0.01} />
             </linearGradient>
           ))}
         </defs>
@@ -151,7 +166,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
             const pts   = visData.map((row, i) => ({ x: xPx(i), y: yPx(Number(row[col]) || 0) }))
             const line  = smoothPath(pts)
             const area  = pts.length ? `${line} L${pts[pts.length-1].x},${cH} L${pts[0].x},${cH} Z` : ''
-            const color = PALETTE[si % PALETTE.length]
+            const color = colors[si % colors.length]
             const dash  = DASHES[si % DASHES.length]
             return (
               <g key={col}>
@@ -165,16 +180,35 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
             )
           })}
 
+          {/* Línea de tendencia (regresión lineal) por serie */}
+          {trendLine && numericCols.map((col, si) => {
+            const reg = linearRegression(visData.map(row => Number(row[col]) || 0))
+            if (!reg) return null
+            const x1 = xPx(0), x2 = xPx(n - 1)
+            const y1 = yPx(reg.b), y2 = yPx(reg.m * (n - 1) + reg.b)
+            return (
+              <line key={`trend-${col}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={colors[si % colors.length]} strokeWidth={1.5}
+                strokeDasharray="5 4" opacity={0.6} />
+            )
+          })}
+
           {/* Puntos */}
           {n <= 80 && numericCols.map((col, si) => {
-            const color = PALETTE[si % PALETTE.length]
+            const color = colors[si % colors.length]
             return visData.map((row, i) => {
               const isSel = i === selIdx, isHov = i === hoverIdx
+              const v = Number(row[col]) || 0
               return (
-                <circle key={`${si}-${i}`} cx={xPx(i)} cy={yPx(Number(row[col]) || 0)}
-                  r={isSel ? 7 : isHov ? 5 : 3}
-                  fill={color} stroke="#fff" strokeWidth={isSel ? 2.5 : 1}
-                  style={{ transition: 'r 0.1s' }} />
+                <g key={`${si}-${i}`}>
+                  <circle cx={xPx(i)} cy={yPx(v)}
+                    r={isSel ? 7 : isHov ? 5 : 3}
+                    fill={color} stroke="#fff" strokeWidth={isSel ? 2.5 : 1}
+                    style={{ transition: 'r 0.1s' }} />
+                  {showLabels && (
+                    <text x={xPx(i)} y={yPx(v) - 9} textAnchor="middle" fontSize={9} fill="#888">{fmtV(v)}</text>
+                  )}
+                </g>
               )
             })
           })}
@@ -222,7 +256,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
               <svg width={24} height={10} style={{ overflow: 'visible' }}>
                 <line x1={0} y1={5} x2={24} y2={5}
-                  stroke={PALETTE[i % PALETTE.length]} strokeWidth={2.5}
+                  stroke={colors[i % colors.length]} strokeWidth={2.5}
                   strokeDasharray={DASHES[i % DASHES.length]} strokeLinecap="round" />
               </svg>
               {col}
@@ -241,7 +275,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, clickFilter,
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <svg width={14} height={8} style={{ flexShrink: 0 }}>
-                <line x1={0} y1={4} x2={14} y2={4} stroke={PALETTE[i % PALETTE.length]}
+                <line x1={0} y1={4} x2={14} y2={4} stroke={colors[i % colors.length]}
                   strokeWidth={2} strokeDasharray={DASHES[i % DASHES.length]} strokeLinecap="round" />
               </svg>
               {col}: <strong style={{ color: '#fff' }}>{fmtV(Number(tooltip.row[col]) || 0)}</strong>

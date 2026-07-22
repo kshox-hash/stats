@@ -22,7 +22,8 @@ function donutPath(cx, cy, R, r, a1, a2) {
   ].join(' ')
 }
 
-export default function PieChartSVG({ data, labelCol, valueCol, clickFilter, onSliceClick }) {
+export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFilter, onSliceClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 400, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -37,10 +38,11 @@ export default function PieChartSVG({ data, labelCol, valueCol, clickFilter, onS
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !valueCol) return null
+  if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const total = data.reduce((s, r) => s + Math.max(0, Number(r[valueCol]) || 0), 0)
-  if (total === 0) return null
+  if (total === 0) return <p className="chart-msg">Los valores son todos cero — no hay nada que graficar.</p>
 
   const { w, h } = size
   const legH = Math.min(40, Math.ceil(data.length / 3) * 18)
@@ -56,7 +58,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, clickFilter, onS
     const pct = v / total
     const end = angle + pct * 2 * Math.PI
     if (end - angle < 0.002) return
-    slices.push({ i, row, label: String(row[labelCol] ?? ''), v, pct, a1: angle, a2: end, color: PALETTE[i % PALETTE.length] })
+    slices.push({ i, row, label: String(row[labelCol] ?? ''), v, pct, a1: angle, a2: end, color: colors[i % colors.length] })
     angle = end
   })
 

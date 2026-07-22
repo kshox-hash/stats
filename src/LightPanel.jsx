@@ -6,7 +6,7 @@ const DEFAULT_H = 380
 const MIN_W     = 320
 const MIN_H     = 200
 
-export default function LightPanel({ title, icon, children, onClose, onExpand, initialPos, onDragEnd, zIndex, onFocus }) {
+export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, initialPos, onDragEnd, zIndex, onFocus }) {
   const panelRef = useRef(null)
   const ghostRef = useRef(null)
   const pos      = useRef(initialPos ?? { x: 60 + Math.random() * 200, y: 56 + Math.random() * 100 })
@@ -75,6 +75,9 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, i
         <div className="lp-overlay" onMouseDown={onMouseDownDrag}>
           <span className="lp-overlay-title">{icon}{title}</span>
           <div className="lp-overlay-btns">
+            {onConfig && (
+              <button onMouseDown={e => e.stopPropagation()} onClick={onConfig} title="Configurar gráfico">⚙</button>
+            )}
             {onExpand && (
               <button onMouseDown={e => e.stopPropagation()} onClick={onExpand} title="Pantalla completa">⤢</button>
             )}

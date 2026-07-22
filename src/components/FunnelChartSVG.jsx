@@ -9,7 +9,8 @@ function fmtV(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
 }
 
-export default function FunnelChartSVG({ data, labelCol, valueCol, clickFilter, onSliceClick }) {
+export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clickFilter, onSliceClick }) {
+  const colors = palette && palette.length ? palette : PALETTE
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 400, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -24,7 +25,8 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, clickFilter, 
 
   useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
 
-  if (!data.length || !valueCol) return null
+  if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+  if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
   const sorted = [...data].sort((a, b) => (Number(b[valueCol]) || 0) - (Number(a[valueCol]) || 0))
   const maxV   = Number(sorted[0]?.[valueCol]) || 1
@@ -56,7 +58,7 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, clickFilter, 
             const topL  = cx - topW / 2, topR = cx + topW / 2
             const botL  = cx - botW / 2, botR = cx + botW / 2
             const y     = i * (barH + gap)
-            const color = PALETTE[i % PALETTE.length]
+            const color = colors[i % colors.length]
             const label = String(row[labelCol] ?? '')
             const isSel = clickFilter && String(label) === String(clickFilter.value)
             const op    = !clickFilter ? 1 : isSel ? 1 : 0.2
