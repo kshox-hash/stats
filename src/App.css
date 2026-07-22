@@ -239,7 +239,7 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 .tab-add:hover { border-color: var(--yellow); color: var(--yellow); }
 
 /* ── Modal ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(10,10,30,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(10,10,30,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 100%; max-width: 980px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.18); }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--surf2); flex-shrink: 0; }
 .modal-chart { padding: 18px 14px 10px; flex: 1; overflow: auto; }

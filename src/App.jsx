@@ -242,9 +242,12 @@ export default function App() {
     if (isAdding) {
       setPanelPos(prev => {
         if (prev[id]) return prev
-        const step    = 36
-        const cascade = pg.charts.length % 8
-        return { ...prev, [id]: { x: 60 + cascade * step, y: 70 + cascade * step } }
+        // Grilla de 2 columnas — los paneles nuevos no se solapan con los ya abiertos
+        const PANEL_W = 620, PANEL_H = 380, GAP = 24, COLS = 2, ROWS = 4
+        const idx = pg.charts.length % (COLS * ROWS)
+        const col = idx % COLS
+        const row = Math.floor(idx / COLS)
+        return { ...prev, [id]: { x: 40 + col * (PANEL_W + GAP), y: 60 + row * (PANEL_H + GAP) } }
       })
     }
   }
