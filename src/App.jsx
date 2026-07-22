@@ -18,6 +18,7 @@ import GaugeSVG from './components/GaugeSVG'
 import TabBar from './components/TabBar'
 import FilterPanel from './components/FilterPanel'
 import ChartConfig, { PALETTES } from './components/ChartConfig'
+import ColumnReview from './components/ColumnReview'
 import './App.css'
 
 // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -68,6 +69,29 @@ function isNumericLike(v) {
   if (typeof v !== 'string') return false
   const s = v.trim()
   return s !== '' && isFinite(Number(s))
+}
+
+// SheetJS nombra "__EMPTY", "__EMPTY_1"... a las columnas cuyo encabezado venía vacío en el Excel.
+// Le ponemos un nombre más claro basado en la posición real de la columna (como hace Power BI con "Column2").
+function renameEmptyHeaders(rows) {
+  if (!rows.length) return { rows, autoNamed: [] }
+  const keys    = Object.keys(rows[0])
+  const mapping = {}
+  const autoNamed = []
+  keys.forEach((k, i) => {
+    if (/^__EMPTY(_\d+)?$/.test(k)) {
+      const newName = `Columna ${i + 1}`
+      mapping[k] = newName
+      autoNamed.push(newName)
+    }
+  })
+  if (!autoNamed.length) return { rows, autoNamed: [] }
+  const renamedRows = rows.map(row => {
+    const obj = {}
+    for (const k of keys) obj[mapping[k] ?? k] = row[k]
+    return obj
+  })
+  return { rows: renamedRows, autoNamed }
 }
 
 function detectColumns(rows) {
@@ -131,6 +155,7 @@ export default function App() {
   const [fileName, setFileName] = useState('')
   const [error, setError]       = useState('')
   const [dragging, setDragging] = useState(false)
+  const [pendingReview, setPendingReview] = useState(null) // { rows, columns, autoNamed } — revisión de columnas sin título
 
   // Páginas
   const [pages, setPages]           = useState([{ id: 'p1', name: 'Página 1' }])
@@ -212,13 +237,7 @@ export default function App() {
   const isFiltered = filteredRows.length < rows.length
 
   // ── Acciones de datos ──────────────────────────────────────────────────────
-  const loadFile = async (file) => {
-    if (!file) return
-    const ext = file.name.split('.').pop().toLowerCase()
-    if (!['xlsx','xls','csv'].includes(ext)) { setError('Formato no soportado.'); return }
-    setError('')
-    setFileName(file.name)
-    const data = await parseFile(file)
+  const applyLoadedRows = (data) => {
     setRows(data)
     setClickFilter(null)
     setSlicerFilters({})
@@ -226,6 +245,36 @@ export default function App() {
     setDateFilters({})
     setKpiAgg({})
     updatePg(pg => ({ ...pg, charts: [] }))
+  }
+
+  const loadFile = async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['xlsx','xls','csv'].includes(ext)) { setError('Formato no soportado.'); return }
+    setError('')
+    setFileName(file.name)
+    const raw = await parseFile(file)
+    const { rows: data, autoNamed } = renameEmptyHeaders(raw)
+    if (autoNamed.length > 0) {
+      setPendingReview({ rows: data, columns: data.length ? Object.keys(data[0]) : [], autoNamed })
+    } else {
+      applyLoadedRows(data)
+    }
+  }
+
+  const confirmColumnReview = (nameMap) => {
+    const renamedRows = pendingReview.rows.map(row => {
+      const obj = {}
+      for (const [k, v] of Object.entries(row)) obj[nameMap[k] ?? k] = v
+      return obj
+    })
+    setPendingReview(null)
+    applyLoadedRows(renamedRows)
+  }
+
+  const skipColumnReview = () => {
+    applyLoadedRows(pendingReview.rows)
+    setPendingReview(null)
   }
 
   const onDrop = useCallback((e) => {
@@ -650,6 +699,16 @@ export default function App() {
             />
           </div>
         </div>
+      )}
+
+      {/* ── Revisión de columnas sin título al subir un archivo ── */}
+      {pendingReview && (
+        <ColumnReview
+          columns={pendingReview.columns}
+          autoNamed={pendingReview.autoNamed}
+          onConfirm={confirmColumnReview}
+          onSkip={skipColumnReview}
+        />
       )}
 
       {/* ── Modal fullscreen ── */}

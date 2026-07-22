@@ -317,4 +317,13 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 .cc-palettes { display: flex; gap: 6px; flex-wrap: wrap; }
 .cc-pal { display: flex; width: 40px; height: 22px; border-radius: 4px; overflow: hidden; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .cc-pal.active { border-color: var(--accent); }
+
+/* ── Revisión de columnas (encabezados vacíos al subir un archivo) ── */
+.cr-row { display: flex; align-items: center; gap: 8px; }
+.cr-input { flex: 1; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 13px; }
+.cr-input-auto { border-color: var(--yellow); background: #fffbe8; }
+.cr-badge { font-size: 10px; color: #a67c00; background: #fff3c4; padding: 2px 7px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+.cr-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.cr-continue { background: var(--accent); border: 1px solid var(--accent); color: #fff; padding: 7px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cr-continue:hover { opacity: 0.9; }
 .chart-scroll::-webkit-scrollbar-thumb:hover { background: #0078D4; }
