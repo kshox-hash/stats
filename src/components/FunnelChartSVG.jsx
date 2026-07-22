@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
 
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
-}
-
-export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clickFilter, onSliceClick }) {
+export default function FunnelChartSVG({ data, labelCol, valueCol, palette, format, clickFilter, onSliceClick }) {
   const colors = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 400, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -28,8 +23,8 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clic
   if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
 
-  const sorted = [...data].sort((a, b) => (Number(b[valueCol]) || 0) - (Number(a[valueCol]) || 0))
-  const maxV   = Number(sorted[0]?.[valueCol]) || 1
+  const sorted = data
+  const maxV   = Math.max(...data.map(r => Number(r[valueCol]) || 0), 1)
   const n      = sorted.length
 
   const { w, h } = size
@@ -63,7 +58,7 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clic
             const isSel = clickFilter && clickFilter.values.includes(label)
             const op    = !clickFilter ? 1 : isSel ? 1 : 0.2
             const isHov = hovIdx === i
-            const pct   = (v / (Number(sorted[0]?.[valueCol]) || 1) * 100).toFixed(0)
+            const pct   = (v / maxV * 100).toFixed(0)
             return (
               <g key={i} style={{ cursor: 'pointer' }}
                 onClick={e => onSliceClick(label, e.ctrlKey || e.metaKey)}

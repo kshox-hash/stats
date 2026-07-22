@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const ML = 52, MR = 16, MT = 10, MB = 46
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
@@ -15,13 +16,6 @@ function niceTicks(max, count = 5) {
     if (ticks.length > count + 1) break
   }
   return ticks
-}
-
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
 }
 
 function smoothPath(pts, t = 0.35) {
@@ -47,8 +41,9 @@ function linearRegression(vals) {
   return { m, b }
 }
 
-export default function AreaChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, clickFilter, onPointClick }) {
+export default function AreaChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, showLegend = true, format, clickFilter, onPointClick }) {
   const colors   = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const wrapRef  = useRef(null)
   const uid      = useRef(Math.random().toString(36).slice(2))
   const [size, setSize]         = useState({ w: 600, h: 260 })
@@ -195,7 +190,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
         </g>
       </svg>
 
-      {numericCols.length > 1 && (
+      {showLegend && numericCols.length > 1 && (
         <div style={{ display: 'flex', gap: 12, padding: '2px 8px', flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>

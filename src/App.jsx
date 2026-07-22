@@ -182,10 +182,22 @@ function sampleRows(rows, max) {
   return sampled
 }
 
+// Ordena un array de filas agregadas (o no) según la elección del usuario
+function sortAggRows(rows, labelCol, valueCol, sortBy) {
+  if (!sortBy || sortBy === 'none') return rows
+  const arr = [...rows]
+  if (sortBy === 'value_desc') arr.sort((a, b) => (b[valueCol] || 0) - (a[valueCol] || 0))
+  else if (sortBy === 'value_asc') arr.sort((a, b) => (a[valueCol] || 0) - (b[valueCol] || 0))
+  else if (sortBy === 'name_asc') arr.sort((a, b) => String(a[labelCol]).localeCompare(String(b[labelCol])))
+  else if (sortBy === 'name_desc') arr.sort((a, b) => String(b[labelCol]).localeCompare(String(a[labelCol])))
+  return arr
+}
+
 // ── Estado inicial de página ─────────────────────────────────────────────────
-const freshPage = () => ({ charts: [], chartConfigs: {} })
+const freshPage = () => ({ charts: [], chartTypes: {}, chartConfigs: {} })
 
 let pageCounter = 1
+let instanceCounter = 1
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -225,6 +237,8 @@ export default function App() {
   const [configOpen, setConfigOpen]       = useState(null) // id del gráfico cuya config está abierta
   const [showFilters, setShowFilters]     = useState(false)
   const [showDashPanel, setShowDashPanel] = useState(false)
+  const [globalTheme, setGlobalTheme]     = useState('default') // tema de color aplicado a todos los gráficos que no tengan paleta propia
+  const [showThemePicker, setShowThemePicker] = useState(false)
   const fileInputRef = useRef(null)
   const chartRefs    = useRef({})
   const mainRef      = useRef(null)
@@ -322,13 +336,19 @@ export default function App() {
 
   // ── Guardar / cargar dashboard completo ─────────────────────────────────────
   const currentDashboardConfig = () => ({
-    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds,
+    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme,
   })
 
   const loadDashboardConfig = (config) => {
     const loadedPages = config.pages?.length ? config.pages : [{ id: 'p1', name: 'Página 1' }]
     const maxNum = Math.max(1, ...loadedPages.map(p => parseInt(String(p.id).replace(/^p/, ''), 10) || 1))
     pageCounter = maxNum
+
+    // Los IDs de instancia de gráfico (ej. "bar-12") ya vienen únicos guardados;
+    // seguimos el contador desde ahí para que los próximos que se agreguen no choquen.
+    const allInstanceIds = Object.values(config.pageData || {}).flatMap(pg => pg.charts || [])
+    const maxInstance = Math.max(0, ...allInstanceIds.map(id => parseInt(String(id).split('-').pop(), 10) || 0))
+    instanceCounter = maxInstance + 1
 
     setRows(config.rows || [])
     setFileName(config.fileName || '')
@@ -337,6 +357,7 @@ export default function App() {
     setActivePage(config.activePage && loadedPages.some(p => p.id === config.activePage) ? config.activePage : loadedPages[0].id)
     setKpiAgg(config.kpiAgg || {})
     setKpiThresholds(config.kpiThresholds || {})
+    setGlobalTheme(config.globalTheme || 'default')
     setClickFilter(null)
     setSlicerFilters({})
     setRangeFilters({})
@@ -370,23 +391,33 @@ export default function App() {
   }, [])
 
   // ── Gráficos ───────────────────────────────────────────────────────────────
-  const toggleChart = (id) => {
-    const isAdding = !pg.charts.includes(id)
+  // Cada gráfico agregado es una instancia propia (instanceId) — se puede tener
+  // más de un gráfico del mismo tipo en la misma página, cada uno con su config.
+  const addChart = (type) => {
+    const instanceId = `${type}-${instanceCounter++}`
+    const idx = pg.charts.length
     updatePg(pg => ({
       ...pg,
-      charts: isAdding ? [...pg.charts, id] : pg.charts.filter(c => c !== id),
+      charts: [...pg.charts, instanceId],
+      chartTypes: { ...pg.chartTypes, [instanceId]: type },
     }))
-    if (isAdding) {
-      setPanelPos(prev => {
-        if (prev[id]) return prev
-        // Grilla de 2 columnas — los paneles nuevos no se solapan con los ya abiertos
-        const PANEL_W = 620, PANEL_H = 380, GAP = 24, COLS = 2, ROWS = 4
-        const idx = pg.charts.length % (COLS * ROWS)
-        const col = idx % COLS
-        const row = Math.floor(idx / COLS)
-        return { ...prev, [id]: { x: 40 + col * (PANEL_W + GAP), y: 60 + row * (PANEL_H + GAP) } }
-      })
-    }
+    setPanelPos(prev => {
+      if (prev[instanceId]) return prev
+      // Grilla de 2 columnas — los paneles nuevos no se solapan con los ya abiertos
+      const PANEL_W = 620, PANEL_H = 380, GAP = 24, COLS = 2, ROWS = 4
+      const i = idx % (COLS * ROWS)
+      const col = i % COLS
+      const row = Math.floor(i / COLS)
+      return { ...prev, [instanceId]: { x: 40 + col * (PANEL_W + GAP), y: 60 + row * (PANEL_H + GAP) } }
+    })
+  }
+
+  const removeChart = (instanceId) => {
+    updatePg(pg => {
+      const chartTypes   = { ...pg.chartTypes };   delete chartTypes[instanceId]
+      const chartConfigs = { ...pg.chartConfigs }; delete chartConfigs[instanceId]
+      return { ...pg, charts: pg.charts.filter(c => c !== instanceId), chartTypes, chartConfigs }
+    })
   }
 
   // ── Filtros ────────────────────────────────────────────────────────────────
@@ -465,32 +496,39 @@ export default function App() {
   }
 
   // ── Construir gráfico ──────────────────────────────────────────────────────
-  function buildChart(id, fullscreen = false) {
-    // Config propia del gráfico (eje/series/paleta/etiquetas/tendencia) — cae al detectado automáticamente si no hay config
-    const cfg               = pg.chartConfigs?.[id] || {}
+  // instanceId identifica un gráfico puntual en la página (puede haber varios del mismo tipo)
+  function buildChart(instanceId, fullscreen = false) {
+    const chartType = pg.chartTypes?.[instanceId]
+    // Config propia del gráfico (eje/series/paleta/etiquetas/tendencia/orden/formato/leyenda/título)
+    const cfg               = pg.chartConfigs?.[instanceId] || {}
     const chartLabelCol     = (cfg.xCol && columns.includes(cfg.xCol)) ? cfg.xCol : labelCol
     const cfgYCols          = (cfg.yCols || []).filter(c => numericCols.includes(c))
     const chartNumericCols  = cfgYCols.length ? cfgYCols : numericCols
-    const palette           = (cfg.palette && cfg.palette !== 'default') ? PALETTES[cfg.palette] : undefined
+    const palette           = (cfg.palette && cfg.palette !== 'default') ? PALETTES[cfg.palette]
+                              : (globalTheme !== 'default' ? PALETTES[globalTheme] : undefined)
     const showLabels        = !!cfg.showLabels
     const trendLine         = !!cfg.trendLine
+    const showLegend        = cfg.showLegend !== false
+    const format            = cfg.format || 'auto'
     const chartAgg          = cfg.agg || 'sum'
+    const defaultSort       = ['pie', 'funnel', 'treemap'].includes(chartType) ? 'value_desc' : 'none'
+    const sortBy            = cfg.sort || defaultSort
     const onClick           = (value, additive) => applyFilter(chartLabelCol, value, additive)
 
     const aggNote = (original, agg) => original > agg.length
       ? <span className="agg-note">Agrupado por {chartLabelCol} · {agg.length} categorías de {original} filas</span>
       : null
 
-    switch (id) {
+    switch (chartType) {
 
       case 'bar': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <BarChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels}
+                palette={palette} showLabels={showLabels} showLegend={showLegend} format={format}
                 clickFilter={clickFilter} onBarClick={onClick} />
             </div>
           </div>
@@ -500,13 +538,13 @@ export default function App() {
       case 'waterfall': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 60, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 60, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <WaterfallChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
-                palette={palette} showLabels={showLabels}
+                palette={palette} showLabels={showLabels} format={format}
                 clickFilter={clickFilter} onBarClick={onClick} />
             </div>
           </div>
@@ -514,13 +552,13 @@ export default function App() {
       }
 
       case 'line': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <LineChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels} trendLine={trendLine}
+                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format}
                 clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
@@ -528,13 +566,13 @@ export default function App() {
       }
 
       case 'area': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <AreaChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels} trendLine={trendLine}
+                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format}
                 clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
@@ -544,13 +582,13 @@ export default function App() {
       case 'pie': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 12, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 12, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <PieChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
-                palette={palette}
+                palette={palette} showLegend={showLegend} format={format}
                 clickFilter={clickFilter} onSliceClick={onClick} />
             </div>
           </div>
@@ -560,13 +598,13 @@ export default function App() {
       case 'funnel': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 10, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 10, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <FunnelChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
-                palette={palette}
+                palette={palette} format={format}
                 clickFilter={clickFilter} onSliceClick={onClick} />
             </div>
           </div>
@@ -576,13 +614,13 @@ export default function App() {
       case 'treemap': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 30, chartAgg)
+        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 30, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <TreemapSVG data={agg} labelCol={chartLabelCol} valueCol={col}
-                palette={palette}
+                palette={palette} format={format}
                 clickFilter={clickFilter} onCellClick={onClick} />
             </div>
           </div>
@@ -600,7 +638,7 @@ export default function App() {
             )}
             <div style={{ flex: 1, minHeight: 0 }}>
               <ScatterChartSVG data={scatterData} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} trendLine={trendLine}
+                palette={palette} trendLine={trendLine} format={format}
                 clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
@@ -617,6 +655,33 @@ export default function App() {
 
       default: return null
     }
+  }
+
+  // Datos "en bruto" de un gráfico puntual (para exportar) — misma lógica que buildChart pero sin JSX
+  function getChartExportData(instanceId) {
+    const chartType = pg.chartTypes?.[instanceId]
+    const cfg              = pg.chartConfigs?.[instanceId] || {}
+    const chartLabelCol    = (cfg.xCol && columns.includes(cfg.xCol)) ? cfg.xCol : labelCol
+    const cfgYCols         = (cfg.yCols || []).filter(c => numericCols.includes(c))
+    const chartNumericCols = cfgYCols.length ? cfgYCols : numericCols
+    const chartAgg         = cfg.agg || 'sum'
+    const defaultSort      = ['pie', 'funnel', 'treemap'].includes(chartType) ? 'value_desc' : 'none'
+    const sortBy           = cfg.sort || defaultSort
+
+    const limits = { bar: 60, waterfall: 60, line: 80, area: 80, pie: 12, funnel: 10, treemap: 30 }
+    if (chartType === 'scatter') return sampleRows(chartRows, 2000)
+    if (!(chartType in limits)) return []
+    const cols = ['bar', 'line', 'area'].includes(chartType) ? chartNumericCols : [chartNumericCols[0]]
+    if (!cols[0]) return []
+    return sortAggRows(aggregateRows(chartRows, chartLabelCol, cols, limits[chartType], chartAgg), chartLabelCol, cols[0], sortBy)
+  }
+
+  const exportChartData = (instanceId) => {
+    const data = getChartExportData(instanceId)
+    if (!data.length) return
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Datos')
+    XLSX.writeFile(wb, `grafico-${instanceId}.xlsx`)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -645,6 +710,20 @@ export default function App() {
           <button className="hbtn" onClick={() => setShowDashPanel(true)} title="Guardar o cargar un dashboard">💾 Dashboards</button>
           {rows.length > 0 && (
             <>
+              <div style={{ position: 'relative' }}>
+                <button className="hbtn" onClick={() => setShowThemePicker(v => !v)} title="Tema de color del dashboard">🎨 Tema</button>
+                {showThemePicker && (
+                  <div className="theme-picker">
+                    {Object.entries(PALETTES).map(([name, colors]) => (
+                      <button key={name} title={name}
+                        className={`cc-pal ${globalTheme === name ? 'active' : ''}`}
+                        onClick={() => { setGlobalTheme(name); setShowThemePicker(false) }}>
+                        {colors.slice(0, 5).map((c, i) => <span key={i} style={{ background: c, flex: 1, height: '100%' }} />)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button className="hbtn" onClick={exportExcel} title="Exportar datos a Excel">↓ Excel</button>
               <button className="hbtn" onClick={exportPDF}   title="Exportar dashboard a PDF">↓ PDF</button>
               <button className={`hbtn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(v => !v)}>
@@ -670,14 +749,14 @@ export default function App() {
               <p className="viz-group-label">{group.label}</p>
               <div className="viz-grid">
                 {group.ids.map(id => {
-                  const active = pg.charts.includes(id)
+                  const count = pg.charts.filter(c => pg.chartTypes?.[c] === id).length
                   return (
                     <button key={id}
-                      className={`viz-btn ${active ? 'active' : ''} ${!rows.length ? 'locked' : ''}`}
-                      onClick={() => rows.length && toggleChart(id)}
-                      title={CHART_META[id]}>
-                      <span className="viz-icon"><ChartIcon type={id} active={active} size={20} /></span>
-                      <span className="viz-name">{CHART_META[id]}</span>
+                      className={`viz-btn ${count > 0 ? 'active' : ''} ${!rows.length ? 'locked' : ''}`}
+                      onClick={() => rows.length && addChart(id)}
+                      title={`Agregar ${CHART_META[id]}`}>
+                      <span className="viz-icon"><ChartIcon type={id} active={count > 0} size={20} /></span>
+                      <span className="viz-name">{CHART_META[id]}{count > 1 && <span className="viz-count">×{count}</span>}</span>
                     </button>
                   )
                 })}
@@ -778,35 +857,39 @@ export default function App() {
         onRemove={removePage} onRename={renamePage} />
 
       {/* ── Paneles ligeros flotantes ── */}
-      {pg.charts.map(id => (
-        <LightPanel key={id} title={CHART_META[id]}
-          icon={<ChartIcon type={id} active size={14} />}
-          onClose={() => toggleChart(id)}
-          onExpand={() => setExpanded(id)}
-          onConfig={() => setConfigOpen(id)}
-          initialPos={panelPos[id]}
-          onDragEnd={p => setPanelPos(prev => ({ ...prev, [id]: p }))}
-          zIndex={getZIndex(id)}
-          onFocus={() => bringToFront(id)}>
-          <div ref={el => chartRefs.current[id] = el} style={{ height: '100%' }}>
-            {buildChart(id, false)}
-          </div>
-        </LightPanel>
-      ))}
+      {pg.charts.map(instanceId => {
+        const chartType = pg.chartTypes?.[instanceId]
+        const title = pg.chartConfigs?.[instanceId]?.title || CHART_META[chartType]
+        return (
+          <LightPanel key={instanceId} title={title}
+            icon={<ChartIcon type={chartType} active size={14} />}
+            onClose={() => removeChart(instanceId)}
+            onExpand={() => setExpanded(instanceId)}
+            onConfig={() => setConfigOpen(instanceId)}
+            initialPos={panelPos[instanceId]}
+            onDragEnd={p => setPanelPos(prev => ({ ...prev, [instanceId]: p }))}
+            zIndex={getZIndex(instanceId)}
+            onFocus={() => bringToFront(instanceId)}>
+            <div ref={el => chartRefs.current[instanceId] = el} style={{ height: '100%' }}>
+              {buildChart(instanceId, false)}
+            </div>
+          </LightPanel>
+        )
+      })}
 
-      {/* ── Modal de configuración de gráfico (eje, series, paleta, etiquetas, tendencia) ── */}
+      {/* ── Modal de configuración de gráfico (eje, series, paleta, etiquetas, tendencia, orden, título, formato, leyenda) ── */}
       {configOpen && (
         <div className="modal-overlay" onClick={() => setConfigOpen(null)}>
           <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="card-title">
-                <ChartIcon type={configOpen} active size={16} />
-                Configurar {CHART_META[configOpen]}
+                <ChartIcon type={pg.chartTypes?.[configOpen]} active size={16} />
+                Configurar {pg.chartConfigs?.[configOpen]?.title || CHART_META[pg.chartTypes?.[configOpen]]}
               </span>
               <button className="action-btn close" onClick={() => setConfigOpen(null)}>✕</button>
             </div>
             <ChartConfig
-              chartId={configOpen}
+              chartId={pg.chartTypes?.[configOpen]}
               config={pg.chartConfigs?.[configOpen] || {}}
               columns={columns}
               numericCols={numericCols}
@@ -850,12 +933,13 @@ export default function App() {
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="card-title">
-                <ChartIcon type={expanded} active size={16} />
-                {CHART_META[expanded]}
+                <ChartIcon type={pg.chartTypes?.[expanded]} active size={16} />
+                {pg.chartConfigs?.[expanded]?.title || CHART_META[pg.chartTypes?.[expanded]]}
                 {clickFilter && <span className="filter-pill">{clickFilter.values.join(', ')}</span>}
               </span>
               <div className="card-actions">
                 <button className="action-btn" onClick={() => downloadChart(expanded)}>↓ PNG</button>
+                <button className="action-btn" onClick={() => exportChartData(expanded)}>↓ Datos</button>
                 <button className="action-btn close" onClick={() => setExpanded(null)}>✕</button>
               </div>
             </div>

@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const PALETTE = ['#0078D4','#47A85C','#9B59B6','#E67E22','#1ABC9C','#E04837','#F2C811','#3498DB','#E91E63','#00BCD4']
-
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
-}
 
 function layout(items, rect, result = []) {
   if (!items.length) return result
@@ -33,8 +27,9 @@ function layout(items, rect, result = []) {
   return result
 }
 
-export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFilter, onCellClick }) {
+export default function TreemapSVG({ data, labelCol, valueCol, palette, format, clickFilter, onCellClick }) {
   const colors = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 500, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -55,7 +50,6 @@ export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFil
   const items = data
     .map((row, i) => ({ label: String(row[labelCol] ?? ''), value: Math.max(0, Number(row[valueCol]) || 0), i }))
     .filter(d => d.value > 0)
-    .sort((a, b) => b.value - a.value)
 
   if (!items.length) return <p className="chart-msg">Los valores son todos cero — no hay nada que graficar.</p>
 

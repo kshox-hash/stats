@@ -6,10 +6,13 @@ export const PALETTES = {
   nature:  ['#2d6a4f','#40916c','#52b788','#74c69d','#95d5b2','#1b4332','#b7e4c7','#d8f3dc'],
 }
 
-const TREND_CHARTS = ['line', 'area', 'scatter']
-const LABEL_CHARTS = ['bar', 'line', 'area', 'waterfall']
-const AGG_CHARTS   = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
-const AGGS         = [
+const TREND_CHARTS  = ['line', 'area', 'scatter']
+const LABEL_CHARTS  = ['bar', 'line', 'area', 'waterfall']
+const AGG_CHARTS    = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
+const SORT_CHARTS   = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
+const LEGEND_CHARTS = ['bar', 'line', 'area', 'pie']
+
+const AGGS = [
   { value: 'sum',   label: 'Suma' },
   { value: 'avg',   label: 'Promedio' },
   { value: 'max',   label: 'Máximo' },
@@ -17,8 +20,24 @@ const AGGS         = [
   { value: 'count', label: 'Conteo' },
 ]
 
+const SORTS = [
+  { value: 'none',       label: 'Original' },
+  { value: 'value_desc', label: 'Valor (mayor a menor)' },
+  { value: 'value_asc',  label: 'Valor (menor a mayor)' },
+  { value: 'name_asc',   label: 'Nombre (A-Z)' },
+  { value: 'name_desc',  label: 'Nombre (Z-A)' },
+]
+
+const FORMATS = [
+  { value: 'auto',     label: 'Automático (K/M)' },
+  { value: 'plain',    label: 'Número completo' },
+  { value: 'currency', label: 'Moneda ($)' },
+  { value: 'percent',  label: 'Porcentaje (%)' },
+]
+
 export default function ChartConfig({ chartId, config, columns, numericCols, onChange }) {
   const yCols = config.yCols || numericCols
+  const defaultSort = ['pie', 'funnel', 'treemap'].includes(chartId) ? 'value_desc' : 'none'
 
   const toggleYCol = (col) => {
     const next = yCols.includes(col) ? yCols.filter(c => c !== col) : [...yCols, col]
@@ -27,6 +46,13 @@ export default function ChartConfig({ chartId, config, columns, numericCols, onC
 
   return (
     <div className="chart-config">
+      {/* Título */}
+      <div className="cc-row">
+        <label className="cc-label">Título</label>
+        <input className="cc-select" type="text" placeholder="(nombre por defecto)"
+          value={config.title || ''} onChange={e => onChange({ title: e.target.value })} />
+      </div>
+
       {/* Eje X */}
       <div className="cc-row">
         <label className="cc-label">Eje X / Categoría</label>
@@ -62,11 +88,39 @@ export default function ChartConfig({ chartId, config, columns, numericCols, onC
         </div>
       )}
 
+      {/* Orden */}
+      {SORT_CHARTS.includes(chartId) && (
+        <div className="cc-row">
+          <label className="cc-label">Orden</label>
+          <select className="cc-select" value={config.sort || defaultSort}
+            onChange={e => onChange({ sort: e.target.value })}>
+            {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Formato de número */}
+      <div className="cc-row">
+        <label className="cc-label">Formato de número</label>
+        <select className="cc-select" value={config.format || 'auto'}
+          onChange={e => onChange({ format: e.target.value })}>
+          {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+      </div>
+
       {/* Etiquetas */}
       {LABEL_CHARTS.includes(chartId) && (
         <div className="cc-row cc-toggle">
           <label className="cc-label">Etiquetas de datos</label>
           <input type="checkbox" checked={!!config.showLabels} onChange={e => onChange({ showLabels: e.target.checked })} />
+        </div>
+      )}
+
+      {/* Leyenda */}
+      {LEGEND_CHARTS.includes(chartId) && (
+        <div className="cc-row cc-toggle">
+          <label className="cc-label">Mostrar leyenda</label>
+          <input type="checkbox" checked={config.showLegend !== false} onChange={e => onChange({ showLegend: e.target.checked })} />
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const ML = 52, MR = 16, MT = 10, MB = 36
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
@@ -18,13 +19,6 @@ function niceTicks(min, max, count = 5) {
   return ticks
 }
 
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(2)
-}
-
 // Regresión lineal simple (mínimos cuadrados)
 function linearRegression(points) {
   const n = points.length
@@ -38,8 +32,9 @@ function linearRegression(points) {
   return { m, b }
 }
 
-export default function ScatterChartSVG({ data, labelCol, numericCols, palette, trendLine, clickFilter, onPointClick }) {
+export default function ScatterChartSVG({ data, labelCol, numericCols, palette, trendLine, format, clickFilter, onPointClick }) {
   const colors = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const wrapRef = useRef(null)
   const [size, setSize]       = useState({ w: 600, h: 300 })
   const [tooltip, setTooltip] = useState(null)

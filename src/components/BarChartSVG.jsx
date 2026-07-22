@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const ML = 52, MR = 12, MT = 10, MB = 54
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
@@ -16,15 +17,9 @@ function niceTicks(max, count = 5) {
   return ticks
 }
 
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
-}
-
-export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, clickFilter, onBarClick }) {
+export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, showLegend = true, format, clickFilter, onBarClick }) {
   const colors = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const outerRef  = useRef(null)
   const wrapRef   = useRef(null)
   const [wrapW, setWrapW]     = useState(600)
@@ -133,7 +128,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
         </svg>
       </div>
 
-      {nS > 1 && (
+      {showLegend && nS > 1 && (
         <div style={{ display: 'flex', gap: 10, padding: '3px 8px', flexWrap: 'wrap', flexShrink: 0 }}>
           {numericCols.map((col, i) => (
             <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888' }}>

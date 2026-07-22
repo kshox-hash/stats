@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { formatValue } from '../format'
 
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
-
-function fmtV(n) {
-  if (!isFinite(n)) return ''
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return n.toLocaleString(undefined, { maximumFractionDigits: 1 })
-}
 
 function donutPath(cx, cy, R, r, a1, a2) {
   const cos1 = Math.cos(a1), sin1 = Math.sin(a1)
@@ -22,8 +16,9 @@ function donutPath(cx, cy, R, r, a1, a2) {
   ].join(' ')
 }
 
-export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFilter, onSliceClick }) {
+export default function PieChartSVG({ data, labelCol, valueCol, palette, showLegend = true, format, clickFilter, onSliceClick }) {
   const colors = palette && palette.length ? palette : PALETTE
+  const fmtV = v => formatValue(v, format)
   const wrapRef  = useRef(null)
   const [size, setSize]       = useState({ w: 400, h: 300 })
   const [hovIdx, setHovIdx]   = useState(null)
@@ -112,6 +107,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
       </svg>
 
       {/* Leyenda */}
+      {showLegend && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: '4px 8px', flexShrink: 0 }}>
         {slices.map(sl => (
           <div key={sl.i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#666', cursor: 'pointer' }}
@@ -122,6 +118,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
           </div>
         ))}
       </div>
+      )}
 
       {tooltip && (
         <div style={{

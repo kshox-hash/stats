@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 function fmt(n) {
   if (!isFinite(n)) return '—'
@@ -43,6 +43,8 @@ export default function FilterPanel({
     })
     return result
   }, [rows, numericCols])
+
+  const [search, setSearch] = useState({}) // { col: término de búsqueda }
 
   const hasAnyFilter = clickFilter
     || Object.values(slicerFilters).some(v => v?.length)
@@ -142,6 +144,8 @@ export default function FilterPanel({
       {categoricalCols.map(col => {
         const selected = slicerFilters[col] || []
         const values   = uniqueValues[col]  || []
+        const term     = (search[col] || '').trim().toLowerCase()
+        const filtered = term ? values.filter(v => v.toLowerCase().includes(term)) : values
         return (
           <div key={col} className="fp-section">
             <div className="fp-section-header">
@@ -150,8 +154,13 @@ export default function FilterPanel({
                 <button className="fp-clear-col" onClick={() => onToggleSlicer(col, null)}>limpiar</button>
               )}
             </div>
+            {values.length > 8 && (
+              <input type="text" className="fp-search" placeholder="Buscar..."
+                value={search[col] || ''}
+                onChange={e => setSearch(prev => ({ ...prev, [col]: e.target.value }))} />
+            )}
             <div className="fp-checkboxes">
-              {values.slice(0, 30).map(val => (
+              {filtered.slice(0, 30).map(val => (
                 <label key={val} className="fp-check">
                   <input type="checkbox"
                     checked={selected.includes(val)}
@@ -159,7 +168,8 @@ export default function FilterPanel({
                   <span>{val}</span>
                 </label>
               ))}
-              {values.length > 30 && <p className="fp-more">+{values.length - 30} valores</p>}
+              {filtered.length === 0 && <p className="fp-more">Sin coincidencias</p>}
+              {filtered.length > 30 && <p className="fp-more">+{filtered.length - 30} valores</p>}
             </div>
           </div>
         )
