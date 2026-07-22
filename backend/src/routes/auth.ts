@@ -8,10 +8,14 @@ import requireAuth from '../middleware/auth'
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET as string
 
+// En producción, frontend (Netlify) y backend (Render) viven en dominios distintos,
+// así que la cookie necesita SameSite=None (y por lo tanto Secure) para viajar entre ellos.
+// En desarrollo local ambos comparten origen vía el proxy de Vite, así que alcanza con Lax.
+const isProd = process.env.NODE_ENV === 'production'
 const COOKIE_OPTS: CookieOptions = {
   httpOnly: true,
-  sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
+  sameSite: isProd ? 'none' : 'lax',
+  secure: isProd,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
 }
 

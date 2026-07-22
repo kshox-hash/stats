@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { apiUrl } from './api'
 
 const AuthContext = createContext(null)
 
@@ -7,7 +8,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
       .then(res => res.ok ? res.json() : null)
       .then(data => setUser(data))
       .catch(() => setUser(null))
@@ -15,7 +16,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (email, password) => {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -27,7 +28,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    await fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' })
     setUser(null)
   }
 

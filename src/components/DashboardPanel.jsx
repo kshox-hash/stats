@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../api'
 
 export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
   const [list, setList]     = useState([])
@@ -7,7 +8,7 @@ export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
   const [msg, setMsg]       = useState('')
 
   const load = async () => {
-    const res = await fetch('/api/dashboards', { credentials: 'include' })
+    const res = await fetch(apiUrl('/api/dashboards'), { credentials: 'include' })
     if (res.ok) setList(await res.json())
   }
 
@@ -16,7 +17,7 @@ export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
   const save = async () => {
     if (!name.trim()) return
     setSaving(true)
-    const res = await fetch('/api/dashboards', {
+    const res = await fetch(apiUrl('/api/dashboards'), {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), config: currentConfig }),
@@ -26,12 +27,12 @@ export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
   }
 
   const del = async (id) => {
-    await fetch(`/api/dashboards/${id}`, { method: 'DELETE', credentials: 'include' })
+    await fetch(apiUrl(`/api/dashboards/${id}`), { method: 'DELETE', credentials: 'include' })
     load()
   }
 
   const loadDash = async (id) => {
-    const res = await fetch(`/api/dashboards/${id}`, { credentials: 'include' })
+    const res = await fetch(apiUrl(`/api/dashboards/${id}`), { credentials: 'include' })
     if (res.ok) { const d = await res.json(); onLoad(d.config); onClose() }
   }
 
