@@ -62,7 +62,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -78,7 +78,9 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
 
   const xPx = i  => n < 2 ? cW / 2 : (i / (n - 1)) * cW
   const yPx = v  => cH - Math.max(0, Math.min(1, v / yMax)) * cH
-  const selIdx   = clickFilter ? data.findIndex(r => String(r[labelCol]) === String(clickFilter.value)) : -1
+  const selIdxs = clickFilter
+    ? data.reduce((acc, r, i) => (clickFilter.values.includes(String(r[labelCol])) ? [...acc, i] : acc), [])
+    : []
   const showEvery = n <= 20 ? 1 : Math.ceil(n / 16)
 
   const getTip = (e) => {
@@ -148,8 +150,8 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
               return (
                 <g key={`${si}-${i}`}>
                   <circle cx={xPx(i)} cy={yPx(v)}
-                    r={i === selIdx ? 6 : i === hoverIdx ? 4 : 2.5}
-                    fill={color} stroke="#fff" strokeWidth={i === selIdx ? 2 : 1}
+                    r={selIdxs.includes(i) ? 6 : i === hoverIdx ? 4 : 2.5}
+                    fill={color} stroke="#fff" strokeWidth={selIdxs.includes(i) ? 2 : 1}
                     style={{ transition: 'r 0.1s' }} />
                   {showLabels && (
                     <text x={xPx(i)} y={yPx(v) - 8} textAnchor="middle" fontSize={9} fill="#888">{fmtV(v)}</text>
@@ -163,10 +165,10 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
             <line x1={xPx(hoverIdx)} x2={xPx(hoverIdx)} y1={0} y2={cH}
               stroke="#0078D4" strokeWidth={1} strokeDasharray="3 2" opacity={0.4} />
           )}
-          {selIdx >= 0 && (
-            <line x1={xPx(selIdx)} x2={xPx(selIdx)} y1={0} y2={cH}
+          {selIdxs.map(i => (
+            <line key={`sel-${i}`} x1={xPx(i)} x2={xPx(i)} y1={0} y2={cH}
               stroke="#F2C811" strokeWidth={2} strokeDasharray="5 3" />
-          )}
+          ))}
 
           {/* Zonas invisibles */}
           {data.map((row, i) => {
@@ -174,7 +176,7 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
             return (
               <rect key={i} x={xPx(i) - slotW/2} y={0} width={slotW} height={cH}
                 fill="transparent" style={{ cursor: 'pointer' }}
-                onClick={() => onPointClick(String(row[labelCol]))}
+                onClick={e => onPointClick(String(row[labelCol]), e.ctrlKey || e.metaKey)}
                 onMouseEnter={e => { setHoverIdx(i); setTooltip({ ...getTip(e), row }) }}
                 onMouseMove={e  => setTooltip(t => t ? { ...getTip(e), row: t.row } : null)}
                 onMouseLeave={() => { setHoverIdx(null); setTooltip(null) }} />

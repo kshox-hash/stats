@@ -20,6 +20,7 @@ import FilterPanel from './components/FilterPanel'
 import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
 import SheetSelector from './components/SheetSelector'
+import DashboardPanel from './components/DashboardPanel'
 import './App.css'
 
 // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -118,30 +119,43 @@ function fmt(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(2)
 }
 
-// Agrupa por labelCol, suma numéricos, limita a `limit` categorías + "Otros"
-function aggregateRows(rows, labelCol, numericCols, limit) {
-  const map = new Map()
+const AGG_FNS = {
+  sum:   vals => vals.reduce((a, b) => a + b, 0),
+  avg:   vals => vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0,
+  max:   vals => vals.length ? Math.max(...vals) : 0,
+  min:   vals => vals.length ? Math.min(...vals) : 0,
+  count: vals => vals.length,
+}
+
+// Agrupa por labelCol, agrega numéricos con la función elegida (sum/avg/max/min/count),
+// limita a `limit` categorías + "Otros"
+function aggregateRows(rows, labelCol, numericCols, limit, agg = 'sum') {
+  const fn = AGG_FNS[agg] || AGG_FNS.sum
+  const groups = new Map()
   for (const row of rows) {
     const key = String(row[labelCol] ?? '')
-    if (!map.has(key)) {
-      const obj = { [labelCol]: key }
-      for (const col of numericCols) obj[col] = 0
-      map.set(key, obj)
-    }
-    const agg = map.get(key)
-    for (const col of numericCols) agg[col] += Number(row[col]) || 0
+    if (!groups.has(key)) groups.set(key, { key, vals: new Map(numericCols.map(c => [c, []])) })
+    const g = groups.get(key)
+    for (const col of numericCols) g.vals.get(col).push(Number(row[col]) || 0)
   }
-  let result = [...map.values()]
-  if (limit && result.length > limit) {
-    const sorted = [...result].sort((a, b) => (b[numericCols[0]] || 0) - (a[numericCols[0]] || 0))
+
+  const toRow = g => {
+    const obj = { [labelCol]: g.key }
+    for (const col of numericCols) obj[col] = fn(g.vals.get(col))
+    return obj
+  }
+
+  const groupList = [...groups.values()]
+  if (limit && groupList.length > limit) {
+    const sorted = [...groupList].sort((a, b) => fn(b.vals.get(numericCols[0]) || []) - fn(a.vals.get(numericCols[0]) || []))
     const top    = sorted.slice(0, limit)
     const rest   = sorted.slice(limit)
-    const otros  = { [labelCol]: `Otros (${rest.length})` }
-    for (const col of numericCols) otros[col] = rest.reduce((s, r) => s + (r[col] || 0), 0)
-    top.push(otros)
-    return top
+    const otrosVals = new Map(numericCols.map(c => [c, rest.flatMap(g => g.vals.get(c))]))
+    const otros = { [labelCol]: `Otros (${rest.length})` }
+    for (const col of numericCols) otros[col] = fn(otrosVals.get(col))
+    return [...top.map(toRow), otros]
   }
-  return result
+  return groupList.map(toRow)
 }
 
 
@@ -187,6 +201,7 @@ export default function App() {
   const [expanded, setExpanded]           = useState(null)
   const [configOpen, setConfigOpen]       = useState(null) // id del gráfico cuya config está abierta
   const [showFilters, setShowFilters]     = useState(false)
+  const [showDashPanel, setShowDashPanel] = useState(false)
   const fileInputRef = useRef(null)
   const chartRefs    = useRef({})
   const mainRef      = useRef(null)
@@ -236,7 +251,7 @@ export default function App() {
   // Filas para la tabla — CON clickFilter aplicado
   const filteredRows = useMemo(() => {
     if (!clickFilter) return chartRows
-    return chartRows.filter(row => String(row[clickFilter.col]) === clickFilter.value)
+    return chartRows.filter(row => clickFilter.values.includes(String(row[clickFilter.col])))
   }, [chartRows, clickFilter])
 
   const isFiltered = filteredRows.length < rows.length
@@ -280,6 +295,31 @@ export default function App() {
     const wb = pendingSheets.wb
     setPendingSheets(null)
     loadSheet(wb, sheetName)
+  }
+
+  // ── Guardar / cargar dashboard completo ─────────────────────────────────────
+  const currentDashboardConfig = () => ({
+    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds,
+  })
+
+  const loadDashboardConfig = (config) => {
+    const loadedPages = config.pages?.length ? config.pages : [{ id: 'p1', name: 'Página 1' }]
+    const maxNum = Math.max(1, ...loadedPages.map(p => parseInt(String(p.id).replace(/^p/, ''), 10) || 1))
+    pageCounter = maxNum
+
+    setRows(config.rows || [])
+    setFileName(config.fileName || '')
+    setPages(loadedPages)
+    setPageData(config.pageData || { [loadedPages[0].id]: freshPage() })
+    setActivePage(config.activePage && loadedPages.some(p => p.id === config.activePage) ? config.activePage : loadedPages[0].id)
+    setKpiAgg(config.kpiAgg || {})
+    setKpiThresholds(config.kpiThresholds || {})
+    setClickFilter(null)
+    setSlicerFilters({})
+    setRangeFilters({})
+    setDateFilters({})
+    setPanelPos({})
+    setZOrder([])
   }
 
   const cancelSheetSelect = () => {
@@ -327,8 +367,22 @@ export default function App() {
   }
 
   // ── Filtros ────────────────────────────────────────────────────────────────
-  const applyFilter = (col, value) =>
-    setClickFilter(prev => (prev?.col === col && prev?.value === String(value)) ? null : { col, value: String(value) })
+  // additive = true (ctrl/cmd+click) suma o saca ese valor de la selección actual;
+  // sin additive, un click selecciona solo ese valor (o lo deselecciona si ya era el único elegido)
+  const applyFilter = (col, value, additive) => {
+    const strVal = String(value)
+    setClickFilter(prev => {
+      if (prev?.col === col) {
+        if (additive) {
+          const has = prev.values.includes(strVal)
+          const next = has ? prev.values.filter(v => v !== strVal) : [...prev.values, strVal]
+          return next.length ? { col, values: next } : null
+        }
+        if (prev.values.length === 1 && prev.values[0] === strVal) return null
+      }
+      return { col, values: [strVal] }
+    })
+  }
 
   const toggleSlicer = (col, val) => {
     if (val === null) { setSlicerFilters(prev => ({ ...prev, [col]: [] })); return }
@@ -397,7 +451,8 @@ export default function App() {
     const palette           = (cfg.palette && cfg.palette !== 'default') ? PALETTES[cfg.palette] : undefined
     const showLabels        = !!cfg.showLabels
     const trendLine         = !!cfg.trendLine
-    const onClick           = (value) => applyFilter(chartLabelCol, value)
+    const chartAgg          = cfg.agg || 'sum'
+    const onClick           = (value, additive) => applyFilter(chartLabelCol, value, additive)
 
     const aggNote = (original, agg) => original > agg.length
       ? <span className="agg-note">Agrupado por {chartLabelCol} · {agg.length} categorías de {original} filas</span>
@@ -406,7 +461,7 @@ export default function App() {
     switch (id) {
 
       case 'bar': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -422,7 +477,7 @@ export default function App() {
       case 'waterfall': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 60)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 60, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -436,7 +491,7 @@ export default function App() {
       }
 
       case 'line': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -450,7 +505,7 @@ export default function App() {
       }
 
       case 'area': {
-        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80)
+        const agg = aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -466,7 +521,7 @@ export default function App() {
       case 'pie': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 12)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 12, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -482,7 +537,7 @@ export default function App() {
       case 'funnel': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 10)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 10, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -498,7 +553,7 @@ export default function App() {
       case 'treemap': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = aggregateRows(chartRows, chartLabelCol, [col], 30)
+        const agg = aggregateRows(chartRows, chartLabelCol, [col], 30, chartAgg)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {aggNote(chartRows.length, agg)}
@@ -554,15 +609,18 @@ export default function App() {
         </div>
         {fileName && <span className="header-file">{fileName}</span>}
 
-        {rows.length > 0 && (
-          <div className="header-actions">
-            <button className="hbtn" onClick={exportExcel} title="Exportar datos a Excel">↓ Excel</button>
-            <button className="hbtn" onClick={exportPDF}   title="Exportar dashboard a PDF">↓ PDF</button>
-            <button className={`hbtn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(v => !v)}>
-              Filtros {totalFilters > 0 && <span className="filter-count">{totalFilters}</span>}
-            </button>
-          </div>
-        )}
+        <div className="header-actions">
+          <button className="hbtn" onClick={() => setShowDashPanel(true)} title="Guardar o cargar un dashboard">💾 Dashboards</button>
+          {rows.length > 0 && (
+            <>
+              <button className="hbtn" onClick={exportExcel} title="Exportar datos a Excel">↓ Excel</button>
+              <button className="hbtn" onClick={exportPDF}   title="Exportar dashboard a PDF">↓ PDF</button>
+              <button className={`hbtn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(v => !v)}>
+                Filtros {totalFilters > 0 && <span className="filter-count">{totalFilters}</span>}
+              </button>
+            </>
+          )}
+        </div>
 
         <div className="header-user">
           <span>{user?.name}</span>
@@ -640,7 +698,7 @@ export default function App() {
                   </span>
                   {isFiltered && (
                     <div className="filter-badge">
-                      <span>{clickFilter ? `${clickFilter.col}: ${clickFilter.value}` : 'Filtros activos'}</span>
+                      <span>{clickFilter ? `${clickFilter.col}: ${clickFilter.values.join(', ')}` : 'Filtros activos'}</span>
                       <button onClick={clearAllFilters}>✕</button>
                     </div>
                   )}
@@ -726,6 +784,15 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Guardar / cargar dashboards ── */}
+      {showDashPanel && (
+        <DashboardPanel
+          currentConfig={currentDashboardConfig()}
+          onLoad={loadDashboardConfig}
+          onClose={() => setShowDashPanel(false)}
+        />
+      )}
+
       {/* ── Selección de pestaña cuando el archivo tiene más de una ── */}
       {pendingSheets && (
         <SheetSelector
@@ -753,7 +820,7 @@ export default function App() {
               <span className="card-title">
                 <ChartIcon type={expanded} active size={16} />
                 {CHART_META[expanded]}
-                {clickFilter && <span className="filter-pill">{clickFilter.value}</span>}
+                {clickFilter && <span className="filter-pill">{clickFilter.values.join(', ')}</span>}
               </span>
               <div className="card-actions">
                 <button className="action-btn" onClick={() => downloadChart(expanded)}>↓ PNG</button>

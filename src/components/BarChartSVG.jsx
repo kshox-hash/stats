@@ -39,7 +39,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
     return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -59,7 +59,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
   const yMax   = ticks[ticks.length - 1]
 
   const yPx    = v => cH - Math.max(0, Math.min(1, v / yMax)) * cH
-  const cellOp = row => !clickFilter ? 1 : String(row[labelCol]) === String(clickFilter.value) ? 1 : 0.15
+  const cellOp = row => !clickFilter ? 1 : clickFilter.values.includes(String(row[labelCol])) ? 1 : 0.15
 
   const getTip = (e, extra) => {
     const r = outerRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 }
@@ -88,7 +88,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
               const delay   = Math.min(gi * 0.018, 0.25)
               return (
                 <g key={gi} style={{ cursor: 'pointer' }}
-                  onClick={() => onBarClick(label)}
+                  onClick={e => onBarClick(label, e.ctrlKey || e.metaKey)}
                   onMouseEnter={e => setTooltip(getTip(e, { label, row }))}
                   onMouseMove={e  => setTooltip(t => t ? getTip(e, { label: t.label, row: t.row }) : null)}
                   onMouseLeave={() => setTooltip(null)}>

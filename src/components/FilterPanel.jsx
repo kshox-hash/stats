@@ -61,7 +61,7 @@ export default function FilterPanel({
         <div className="fp-section">
           <p className="fp-section-title">Selección de gráfico</p>
           <div className="fp-click-filter">
-            <span>{clickFilter.col}: <strong>{clickFilter.value}</strong></span>
+            <span>{clickFilter.col}: <strong>{clickFilter.values.join(', ')}</strong></span>
             <button onClick={onClearClick}>✕</button>
           </div>
         </div>

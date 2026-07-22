@@ -38,7 +38,7 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -68,7 +68,7 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
 
   const yPx   = v => cH * (1 - (v - tMin) / (tMax - tMin))
   const y0    = yPx(0)
-  const cellOp = label => !clickFilter ? 1 : String(label) === String(clickFilter.value) ? 1 : 0.15
+  const cellOp = label => !clickFilter ? 1 : clickFilter.values.includes(String(label)) ? 1 : 0.15
 
   const getTip = (e, extra) => {
     const r = outerRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 }
@@ -112,7 +112,7 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
               const op     = cellOp(d.label)
               return (
                 <g key={gi} style={{ cursor: 'pointer' }}
-                  onClick={() => onBarClick(d.label)}
+                  onClick={e => onBarClick(d.label, e.ctrlKey || e.metaKey)}
                   onMouseEnter={e => setTooltip(getTip(e, { d }))}
                   onMouseMove={e  => setTooltip(t => t ? getTip(e, { d: t.d }) : null)}
                   onMouseLeave={() => setTooltip(null)}>

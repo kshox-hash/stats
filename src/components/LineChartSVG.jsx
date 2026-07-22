@@ -66,7 +66,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1); setXZoom(null) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1); setXZoom(null) }, [clickFilter?.values?.join(',')])
 
   if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -85,7 +85,9 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
   const xPx     = i  => n < 2 ? cW / 2 : (i / (n - 1)) * cW
   const yPx     = v  => cH - Math.max(0, Math.min(1, v / yMax)) * cH
   const pxToIdx = px => Math.max(0, Math.min(n - 1, Math.round((px / cW) * Math.max(1, n - 1))))
-  const selIdx  = clickFilter ? visData.findIndex(r => String(r[labelCol]) === String(clickFilter.value)) : -1
+  const selIdxs = clickFilter
+    ? visData.reduce((acc, r, i) => (clickFilter.values.includes(String(r[labelCol])) ? [...acc, i] : acc), [])
+    : []
   const showEvery = n <= 20 ? 1 : Math.ceil(n / 16)
 
   const getTip = (e, row) => {
@@ -197,7 +199,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
           {n <= 80 && numericCols.map((col, si) => {
             const color = colors[si % colors.length]
             return visData.map((row, i) => {
-              const isSel = i === selIdx, isHov = i === hoverIdx
+              const isSel = selIdxs.includes(i), isHov = i === hoverIdx
               const v = Number(row[col]) || 0
               return (
                 <g key={`${si}-${i}`}>
@@ -217,10 +219,10 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
             <line x1={xPx(hoverIdx)} x2={xPx(hoverIdx)} y1={0} y2={cH}
               stroke="#0078D4" strokeWidth={1} strokeDasharray="3 2" opacity={0.45} />
           )}
-          {selIdx >= 0 && (
-            <line x1={xPx(selIdx)} x2={xPx(selIdx)} y1={0} y2={cH}
+          {selIdxs.map(i => (
+            <line key={`sel-${i}`} x1={xPx(i)} x2={xPx(i)} y1={0} y2={cH}
               stroke="#F2C811" strokeWidth={2} strokeDasharray="5 3" />
-          )}
+          ))}
           {dragRect && (
             <rect x={dragRect.x1} y={0} width={dragRect.x2 - dragRect.x1} height={cH}
               fill="rgba(0,120,212,0.1)" stroke="#0078D4" strokeWidth={1} strokeDasharray="4 2" />
@@ -231,7 +233,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
             return (
               <rect key={i} x={xPx(i) - slotW/2} y={0} width={slotW} height={cH}
                 fill="transparent" style={{ cursor: 'pointer' }}
-                onClick={() => { if (!dragRef.current) onPointClick(String(row[labelCol])) }}
+                onClick={e => { if (!dragRef.current) onPointClick(String(row[labelCol]), e.ctrlKey || e.metaKey) }}
                 onMouseEnter={e => { setHoverIdx(i); setTooltip(getTip(e, row)) }}
                 onMouseMove={e  => setTooltip(t => t ? getTip(e, t.row) : null)}
                 onMouseLeave={() => { setHoverIdx(null); setTooltip(null) }} />

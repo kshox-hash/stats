@@ -55,7 +55,7 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, palette, 
     return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!numericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -77,7 +77,7 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, palette, 
   const xPx = v => ((v - xMin) / (xMax - xMin)) * cW
   const yPx = v => cH - ((v - yMin) / (yMax - yMin)) * cH
 
-  const cellOp = row => !clickFilter ? 1 : String(row[labelCol]) === String(clickFilter.value) ? 1 : 0.15
+  const cellOp = row => !clickFilter ? 1 : clickFilter.values.includes(String(row[labelCol])) ? 1 : 0.15
 
   const getTip = (e, row) => {
     const r = wrapRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 }
@@ -121,7 +121,7 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, palette, 
             const cy    = yPx(Number(row[yCol]) || 0)
             const op    = cellOp(row)
             const label = String(row[labelCol] ?? '')
-            const isSel = clickFilter && String(row[labelCol]) === String(clickFilter.value)
+            const isSel = clickFilter && clickFilter.values.includes(String(row[labelCol]))
             return (
               <circle key={i} cx={cx} cy={cy}
                 r={isSel ? 8 : 6}
@@ -130,7 +130,7 @@ export default function ScatterChartSVG({ data, labelCol, numericCols, palette, 
                 stroke={isSel ? '#fff' : 'none'}
                 strokeWidth={isSel ? 2.5 : 0}
                 style={{ cursor: 'pointer', transition: 'r 0.15s, fill-opacity 0.2s' }}
-                onClick={() => onPointClick(label)}
+                onClick={e => onPointClick(label, e.ctrlKey || e.metaKey)}
                 onMouseEnter={e => setTooltip(getTip(e, row))}
                 onMouseMove={e  => setTooltip(t => t ? getTip(e, t.row) : null)}
                 onMouseLeave={() => setTooltip(null)}

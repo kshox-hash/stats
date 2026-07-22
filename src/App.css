@@ -330,4 +330,14 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 /* ── Selector de hoja/pestaña (archivos con más de una) ── */
 .sheet-btn { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
 .sheet-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--surf2); }
+
+/* ── Guardar / cargar dashboards ── */
+.dash-save-row { display: flex; gap: 8px; }
+.dash-input { flex: 1; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 13px; }
+.dash-save-btn { background: var(--accent); border: 1px solid var(--accent); color: #fff; padding: 7px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.dash-save-btn:hover { opacity: 0.9; }
+.dash-save-btn:disabled { opacity: 0.5; cursor: default; }
+.dash-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border: 1px solid var(--border); border-radius: 5px; background: var(--surf2); }
+.dash-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .chart-scroll::-webkit-scrollbar-thumb:hover { background: #0078D4; }

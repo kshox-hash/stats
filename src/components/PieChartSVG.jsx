@@ -36,7 +36,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -73,7 +73,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
         style={{ display: 'block', animation: 'chart-pop 0.38s cubic-bezier(0.34,1.4,0.64,1) both' }}>
         {slices.map(sl => {
           const isHov = hovIdx === sl.i
-          const isSel = clickFilter && String(sl.label) === String(clickFilter.value)
+          const isSel = clickFilter && clickFilter.values.includes(String(sl.label))
           const op    = !clickFilter ? 1 : isSel ? 1 : 0.2
           const bump  = isHov ? 7 : isSel ? 10 : 0
           const midA  = (sl.a1 + sl.a2) / 2
@@ -83,7 +83,7 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
           return (
             <path key={sl.i} d={path} fill={sl.color} fillOpacity={op}
               style={{ cursor: 'pointer', transition: 'transform 0.15s, fill-opacity 0.15s' }}
-              onClick={() => onSliceClick(sl.label)}
+              onClick={e => onSliceClick(sl.label, e.ctrlKey || e.metaKey)}
               onMouseEnter={e => { setHovIdx(sl.i); setTooltip({ ...getTip(e), sl }) }}
               onMouseMove={e  => setTooltip(t => t ? { ...getTip(e), sl: t.sl } : null)}
               onMouseLeave={() => { setHovIdx(null); setTooltip(null) }} />
@@ -115,9 +115,9 @@ export default function PieChartSVG({ data, labelCol, valueCol, palette, clickFi
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: '4px 8px', flexShrink: 0 }}>
         {slices.map(sl => (
           <div key={sl.i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#666', cursor: 'pointer' }}
-            onClick={() => onSliceClick(sl.label)}>
+            onClick={e => onSliceClick(sl.label, e.ctrlKey || e.metaKey)}>
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: sl.color, display: 'inline-block',
-              opacity: !clickFilter ? 1 : String(sl.label) === String(clickFilter.value) ? 1 : 0.3 }} />
+              opacity: !clickFilter ? 1 : clickFilter.values.includes(String(sl.label)) ? 1 : 0.3 }} />
             {sl.label}
           </div>
         ))}

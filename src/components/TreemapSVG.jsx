@@ -47,7 +47,7 @@ export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFil
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -74,7 +74,7 @@ export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFil
         style={{ display: 'block', animation: 'chart-pop 0.38s cubic-bezier(0.34,1.4,0.64,1) both' }}>
         {cells.map((cell, ci) => {
           const { label, value, i, x, y, w: cw, h: ch } = cell
-          const isSel  = clickFilter && String(label) === String(clickFilter.value)
+          const isSel  = clickFilter && clickFilter.values.includes(label)
           const isHov  = hovIdx === i
           const op     = !clickFilter ? 1 : isSel ? 1 : 0.25
           const color  = colors[i % colors.length]
@@ -83,7 +83,7 @@ export default function TreemapSVG({ data, labelCol, valueCol, palette, clickFil
           const fontSize = Math.max(9, Math.min(13, cw / 8))
           return (
             <g key={ci} style={{ cursor: 'pointer' }}
-              onClick={() => onCellClick(label)}
+              onClick={e => onCellClick(label, e.ctrlKey || e.metaKey)}
               onMouseEnter={e => { setHovIdx(i); setTooltip({ ...getTip(e), label, value }) }}
               onMouseMove={e  => setTooltip(t => t ? { ...getTip(e), label: t.label, value: t.value } : null)}
               onMouseLeave={() => { setHovIdx(null); setTooltip(null) }}>

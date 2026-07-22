@@ -8,6 +8,14 @@ export const PALETTES = {
 
 const TREND_CHARTS = ['line', 'area', 'scatter']
 const LABEL_CHARTS = ['bar', 'line', 'area', 'waterfall']
+const AGG_CHARTS   = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
+const AGGS         = [
+  { value: 'sum',   label: 'Suma' },
+  { value: 'avg',   label: 'Promedio' },
+  { value: 'max',   label: 'Máximo' },
+  { value: 'min',   label: 'Mínimo' },
+  { value: 'count', label: 'Conteo' },
+]
 
 export default function ChartConfig({ chartId, config, columns, numericCols, onChange }) {
   const yCols = config.yCols || numericCols
@@ -40,6 +48,17 @@ export default function ChartConfig({ chartId, config, columns, numericCols, onC
               </label>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Agregación */}
+      {AGG_CHARTS.includes(chartId) && (
+        <div className="cc-row">
+          <label className="cc-label">Agregación</label>
+          <select className="cc-select" value={config.agg || 'sum'}
+            onChange={e => onChange({ agg: e.target.value })}>
+            {AGGS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+          </select>
         </div>
       )}
 

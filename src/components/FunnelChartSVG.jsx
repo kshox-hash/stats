@@ -23,7 +23,7 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clic
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
-  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.value])
+  useEffect(() => { setAnimKey(k => k + 1) }, [clickFilter?.values?.join(',')])
 
   if (!valueCol) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
   if (!data.length) return <p className="chart-msg">No hay datos para mostrar.</p>
@@ -60,13 +60,13 @@ export default function FunnelChartSVG({ data, labelCol, valueCol, palette, clic
             const y     = i * (barH + gap)
             const color = colors[i % colors.length]
             const label = String(row[labelCol] ?? '')
-            const isSel = clickFilter && String(label) === String(clickFilter.value)
+            const isSel = clickFilter && clickFilter.values.includes(label)
             const op    = !clickFilter ? 1 : isSel ? 1 : 0.2
             const isHov = hovIdx === i
             const pct   = (v / (Number(sorted[0]?.[valueCol]) || 1) * 100).toFixed(0)
             return (
               <g key={i} style={{ cursor: 'pointer' }}
-                onClick={() => onSliceClick(label)}
+                onClick={e => onSliceClick(label, e.ctrlKey || e.metaKey)}
                 onMouseEnter={e => { setHovIdx(i); setTooltip({ ...getTip(e), row, v, label }) }}
                 onMouseMove={e  => setTooltip(t => t ? { ...getTip(e), row: t.row, v: t.v, label: t.label } : null)}
                 onMouseLeave={() => { setHovIdx(null); setTooltip(null) }}>
