@@ -108,7 +108,21 @@ function detectColumns(rows) {
   })
   const dateCols = keys.filter(k => !numeric.includes(k) && rows.some(r => isDateLike(r[k])))
   const categ    = keys.filter(k => !numeric.includes(k) && !dateCols.includes(k))
-  const label    = categ[0] ?? keys[0]
+
+  // Columna de agrupación por defecto: preferir la de menor cardinalidad.
+  // Evita elegir automáticamente una columna tipo ID (Nº de orden, folio, etc.)
+  // donde casi todos los valores son distintos y agrupar por ella no sirve de nada.
+  let label = categ[0] ?? keys[0]
+  if (categ.length > 1 && rows.length >= 20) {
+    const uniqueRatio = col => new Set(rows.map(r => r[col])).size / rows.length
+    if (uniqueRatio(label) > 0.5) {
+      const better = categ
+        .map(c => ({ c, ratio: uniqueRatio(c) }))
+        .sort((a, b) => a.ratio - b.ratio)[0]
+      if (better && better.ratio < uniqueRatio(label)) label = better.c
+    }
+  }
+
   return { labelCol: label, numericCols: numeric.filter(k => k !== label), categoricalCols: categ, dateCols }
 }
 
@@ -158,6 +172,15 @@ function aggregateRows(rows, labelCol, numericCols, limit, agg = 'sum') {
   return groupList.map(toRow)
 }
 
+// Muestreo uniforme por índice (determinístico, no cambia entre renders) para
+// gráficos que dibujan un punto por fila y no aguantan decenas de miles de puntos
+function sampleRows(rows, max) {
+  if (rows.length <= max) return rows
+  const step = rows.length / max
+  const sampled = []
+  for (let i = 0; i < max; i++) sampled.push(rows[Math.floor(i * step)])
+  return sampled
+}
 
 // ── Estado inicial de página ─────────────────────────────────────────────────
 const freshPage = () => ({ charts: [], chartConfigs: {} })
@@ -568,10 +591,19 @@ export default function App() {
 
       case 'scatter': {
         if (!chartNumericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
+        const MAX_SCATTER = 2000
+        const scatterData = sampleRows(chartRows, MAX_SCATTER)
         return (
-          <ScatterChartSVG data={chartRows} labelCol={chartLabelCol} numericCols={chartNumericCols}
-            palette={palette} trendLine={trendLine}
-            clickFilter={clickFilter} onPointClick={onClick} />
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {chartRows.length > MAX_SCATTER && (
+              <span className="agg-note">Muestra de {scatterData.length.toLocaleString()} de {chartRows.length.toLocaleString()} filas</span>
+            )}
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ScatterChartSVG data={scatterData} labelCol={chartLabelCol} numericCols={chartNumericCols}
+                palette={palette} trendLine={trendLine}
+                clickFilter={clickFilter} onPointClick={onClick} />
+            </div>
+          </div>
         )
       }
 
