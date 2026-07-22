@@ -19,6 +19,7 @@ import TabBar from './components/TabBar'
 import FilterPanel from './components/FilterPanel'
 import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
+import SheetSelector from './components/SheetSelector'
 import './App.css'
 
 // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -44,18 +45,21 @@ const CHART_META = {
 }
 
 // ── Utilidades ───────────────────────────────────────────────────────────────
-function parseFile(file) {
+function readWorkbook(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' })
-        resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }))
+        resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }))
       } catch (err) { reject(err) }
     }
     reader.onerror = reject
     reader.readAsArrayBuffer(file)
   })
+}
+
+function sheetToRows(wb, sheetName) {
+  return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' })
 }
 
 function isDateLike(v) {
@@ -155,7 +159,8 @@ export default function App() {
   const [fileName, setFileName] = useState('')
   const [error, setError]       = useState('')
   const [dragging, setDragging] = useState(false)
-  const [pendingReview, setPendingReview] = useState(null) // { rows, columns, autoNamed } — revisión de columnas sin título
+  const [pendingReview, setPendingReview]   = useState(null) // { rows, columns, autoNamed } — revisión de columnas sin título
+  const [pendingSheets, setPendingSheets]   = useState(null) // { wb } — elegir pestaña cuando el archivo tiene más de una
 
   // Páginas
   const [pages, setPages]           = useState([{ id: 'p1', name: 'Página 1' }])
@@ -247,19 +252,39 @@ export default function App() {
     updatePg(pg => ({ ...pg, charts: [] }))
   }
 
-  const loadFile = async (file) => {
-    if (!file) return
-    const ext = file.name.split('.').pop().toLowerCase()
-    if (!['xlsx','xls','csv'].includes(ext)) { setError('Formato no soportado.'); return }
-    setError('')
-    setFileName(file.name)
-    const raw = await parseFile(file)
+  const loadSheet = (wb, sheetName) => {
+    const raw = sheetToRows(wb, sheetName)
     const { rows: data, autoNamed } = renameEmptyHeaders(raw)
     if (autoNamed.length > 0) {
       setPendingReview({ rows: data, columns: data.length ? Object.keys(data[0]) : [], autoNamed })
     } else {
       applyLoadedRows(data)
     }
+  }
+
+  const loadFile = async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['xlsx','xls','csv'].includes(ext)) { setError('Formato no soportado.'); return }
+    setError('')
+    setFileName(file.name)
+    const wb = await readWorkbook(file)
+    if (wb.SheetNames.length > 1) {
+      setPendingSheets({ wb })
+    } else {
+      loadSheet(wb, wb.SheetNames[0])
+    }
+  }
+
+  const selectSheet = (sheetName) => {
+    const wb = pendingSheets.wb
+    setPendingSheets(null)
+    loadSheet(wb, sheetName)
+  }
+
+  const cancelSheetSelect = () => {
+    setPendingSheets(null)
+    setFileName('')
   }
 
   const confirmColumnReview = (nameMap) => {
@@ -699,6 +724,15 @@ export default function App() {
             />
           </div>
         </div>
+      )}
+
+      {/* ── Selección de pestaña cuando el archivo tiene más de una ── */}
+      {pendingSheets && (
+        <SheetSelector
+          sheets={pendingSheets.wb.SheetNames}
+          onSelect={selectSheet}
+          onCancel={cancelSheetSelect}
+        />
       )}
 
       {/* ── Revisión de columnas sin título al subir un archivo ── */}
