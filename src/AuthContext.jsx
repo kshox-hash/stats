@@ -7,12 +7,11 @@ export function AuthProvider({ children }) {
   const [user, setUser]       = useState(undefined) // undefined = cargando
   const [loading, setLoading] = useState(true)
 
+  // Login desactivado para pruebas: entra directo, sin pedir sesión al backend.
+  // Para reactivarlo, volver a llamar /api/auth/me acá (ver git log de este archivo).
   useEffect(() => {
-    fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => setUser(data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+    setUser({ name: 'Demo', email: 'demo@demo.com' })
+    setLoading(false)
   }, [])
 
   const login = async (email, password) => {
