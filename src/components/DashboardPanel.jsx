@@ -6,34 +6,59 @@ export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
   const [name, setName]     = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg]       = useState('')
+  const [err, setErr]       = useState('')
 
   const load = async () => {
-    const res = await fetch(apiUrl('/api/dashboards'), { credentials: 'include' })
-    if (res.ok) setList(await res.json())
+    try {
+      const res = await fetch(apiUrl('/api/dashboards'), { credentials: 'include' })
+      if (res.ok) setList(await res.json())
+      else setErr('No se pudo cargar la lista de dashboards.')
+    } catch {
+      setErr('No se pudo conectar con el servidor.')
+    }
   }
 
   useEffect(() => { load() }, [])
 
   const save = async () => {
-    if (!name.trim()) return
+    if (!name.trim()) { setErr('Escribí un nombre para el dashboard.'); return }
     setSaving(true)
-    const res = await fetch(apiUrl('/api/dashboards'), {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), config: currentConfig }),
-    })
+    setErr('')
+    try {
+      const res = await fetch(apiUrl('/api/dashboards'), {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), config: currentConfig }),
+      })
+      if (res.ok) {
+        setName(''); setMsg('Guardado'); load(); setTimeout(() => setMsg(''), 2000)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setErr(data.error || `No se pudo guardar (error ${res.status}).`)
+      }
+    } catch {
+      setErr('No se pudo conectar con el servidor. Revisá tu conexión.')
+    }
     setSaving(false)
-    if (res.ok) { setName(''); setMsg('Guardado'); load(); setTimeout(() => setMsg(''), 2000) }
   }
 
   const del = async (id) => {
-    await fetch(apiUrl(`/api/dashboards/${id}`), { method: 'DELETE', credentials: 'include' })
-    load()
+    try {
+      await fetch(apiUrl(`/api/dashboards/${id}`), { method: 'DELETE', credentials: 'include' })
+      load()
+    } catch {
+      setErr('No se pudo borrar el dashboard.')
+    }
   }
 
   const loadDash = async (id) => {
-    const res = await fetch(apiUrl(`/api/dashboards/${id}`), { credentials: 'include' })
-    if (res.ok) { const d = await res.json(); onLoad(d.config); onClose() }
+    try {
+      const res = await fetch(apiUrl(`/api/dashboards/${id}`), { credentials: 'include' })
+      if (res.ok) { const d = await res.json(); onLoad(d.config); onClose() }
+      else setErr('No se pudo cargar ese dashboard.')
+    } catch {
+      setErr('No se pudo conectar con el servidor.')
+    }
   }
 
   return (
@@ -50,11 +75,12 @@ export default function DashboardPanel({ currentConfig, onLoad, onClose }) {
             <input className="dash-input" placeholder="Nombre del dashboard..." value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && save()} />
-            <button className="dash-save-btn" onClick={save} disabled={saving || !name.trim()}>
+            <button className="dash-save-btn" onClick={save} disabled={saving}>
               {saving ? '...' : 'Guardar'}
             </button>
           </div>
           {msg && <p style={{ fontSize: 12, color: 'var(--green)' }}>✓ {msg}</p>}
+          {err && <p style={{ fontSize: 12, color: 'var(--red)' }}>⚠ {err}</p>}
 
           {/* Lista */}
           {list.length === 0 ? (
