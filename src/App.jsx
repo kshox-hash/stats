@@ -459,6 +459,7 @@ export default function App() {
   // ── Guardar / cargar dashboard completo ─────────────────────────────────────
   const currentDashboardConfig = () => ({
     rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme, anchoredCharts,
+    panelPos, panelSize,
   })
 
   const loadDashboardConfig = (config) => {
@@ -485,7 +486,8 @@ export default function App() {
     setSlicerFilters({})
     setRangeFilters({})
     setDateFilters({})
-    setPanelPos({})
+    setPanelPos(config.panelPos || {})
+    setPanelSize(config.panelSize || {})
     setZOrder([])
   }
 

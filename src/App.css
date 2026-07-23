@@ -326,8 +326,8 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 /* ── Campos arrastrables + pozos (Eje X / Series), como el panel de Campos de Power BI ── */
 .cc-fields-legend { display: flex; gap: 12px; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
 .cc-fields-legend .cc-field-icon { margin-right: 3px; }
-.cc-fields-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: 120px; overflow-y: auto; padding: 8px; background: var(--surf2); border: 1px dashed var(--border); border-radius: 5px; }
-.cc-field-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px 4px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: grab; user-select: none; }
+.cc-fields-list { display: flex; flex-wrap: wrap; gap: 10px; max-height: 130px; overflow-y: auto; padding: 10px; background: var(--surf2); border: 1px dashed var(--border); border-radius: 5px; }
+.cc-field-chip { display: flex; align-items: center; gap: 5px; padding: 5px 10px 5px 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: grab; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
 .cc-field-chip:active { cursor: grabbing; }
 .cc-field-chip.type-num  { border-color: rgba(0,120,212,0.45); background: rgba(0,120,212,0.07); }
 .cc-field-chip.type-text { border-color: rgba(155,89,182,0.4); background: rgba(155,89,182,0.06); }
