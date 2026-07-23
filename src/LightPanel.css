@@ -32,6 +32,16 @@
   color: #E04837 !important;
 }
 
+/* Líneas guía de alineación — aparecen al arrastrar/redimensionar cerca de otro panel */
+.lp-guide {
+  position: fixed;
+  background: #0078D4;
+  pointer-events: none;
+  z-index: 9998;
+}
+.lp-guide-v { top: 0; bottom: 0; width: 1px; }
+.lp-guide-h { left: 0; right: 0; height: 1px; }
+
 /* Ghost — contorno durante resize */
 .lp-ghost {
   display: none;

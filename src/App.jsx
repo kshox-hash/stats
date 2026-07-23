@@ -258,11 +258,25 @@ export default function App() {
   const [activePage, setActivePage] = useState('p1')
   const [pageData, setPageData]     = useState({ p1: freshPage() })
 
-  // Posiciones y z-order de paneles flotantes
-  const [panelPos, setPanelPos] = useState({})
+  // Posiciones, tamaños y z-order de paneles flotantes
+  const [panelPos, setPanelPos]   = useState({})
+  const [panelSize, setPanelSize] = useState({})
   const [zOrder, setZOrder]     = useState([])
   const bringToFront = (id) => setZOrder(prev => [...prev.filter(x => x !== id), id])
   const getZIndex    = (id) => { const i = zOrder.indexOf(id); return i === -1 ? 200 : 200 + i }
+
+  // Rectángulos de los otros paneles (para las líneas guía de alineación al arrastrar/redimensionar)
+  const getPanelRect = (id) => {
+    const pos = panelPos[id]
+    if (!pos) return null
+    const size = panelSize[id] || (id === 'data-table' ? { w: 900, h: 420 } : { w: 620, h: 380 })
+    return { x: pos.x, y: pos.y, w: size.w, h: size.h }
+  }
+  const siblingRectsFor = (excludeId) => {
+    const ids = pg.charts.filter(id => id !== excludeId)
+    if (excludeId !== 'data-table' && rows.length > 0) ids.push('data-table')
+    return ids.map(getPanelRect).filter(Boolean)
+  }
 
   // Filtros
   const [clickFilter, setClickFilter]     = useState(null)  // { col, value }
@@ -992,8 +1006,10 @@ export default function App() {
         <LightPanel title="Datos" icon="📋"
           onClose={() => setShowTable(false)}
           initialPos={panelPos['data-table']}
-          initialSize={{ w: 900, h: 420 }}
+          initialSize={panelSize['data-table'] || { w: 900, h: 420 }}
           onDragEnd={p => setPanelPos(prev => ({ ...prev, 'data-table': p }))}
+          onResizeEnd={s => setPanelSize(prev => ({ ...prev, 'data-table': s }))}
+          siblings={siblingRectsFor('data-table')}
           zIndex={getZIndex('data-table')}
           onFocus={() => bringToFront('data-table')}>
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1076,7 +1092,10 @@ export default function App() {
             onPin={() => toggleAnchor(instanceId)}
             anchored={!!anchoredCharts[instanceId]}
             initialPos={panelPos[instanceId]}
+            initialSize={panelSize[instanceId]}
             onDragEnd={p => setPanelPos(prev => ({ ...prev, [instanceId]: p }))}
+            onResizeEnd={s => setPanelSize(prev => ({ ...prev, [instanceId]: s }))}
+            siblings={siblingRectsFor(instanceId)}
             zIndex={getZIndex(instanceId)}
             onFocus={() => bringToFront(instanceId)}>
             <div ref={el => chartRefs.current[instanceId] = el} style={{ height: '100%' }}>
