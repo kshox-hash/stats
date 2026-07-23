@@ -1,6 +1,6 @@
 import PinnedChart from './PinnedChart'
 
-export default function PinnedPanel({ pinned, onUnpin, onClose }) {
+export default function PinnedPanel({ pinned, onUnpin, onClose, onGoToSource }) {
   return (
     <div className="pinned-panel">
       <div className="filter-panel-header">
@@ -14,10 +14,10 @@ export default function PinnedPanel({ pinned, onUnpin, onClose }) {
       ) : (
         <div className="pinned-list">
           {pinned.map(p => (
-            <div key={p.id} className="pinned-card">
+            <div key={p.id} className="pinned-card" onClick={() => onGoToSource(p)} title="Ir al gráfico original con este mismo filtro">
               <div className="pinned-card-header">
                 <span className="pinned-card-title">{p.title}</span>
-                <button className="action-btn close" onClick={() => onUnpin(p.id)} title="Desanclar">✕</button>
+                <button className="action-btn close" onClick={e => { e.stopPropagation(); onUnpin(p.id) }} title="Desanclar">✕</button>
               </div>
               <div className="pinned-card-chart">
                 <PinnedChart chartType={p.chartType} data={p.data} labelCol={p.labelCol}

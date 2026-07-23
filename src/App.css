@@ -235,7 +235,8 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 /* ── Panel de gráficos anclados ── */
 .pinned-panel { width: 320px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
 .pinned-list { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
-.pinned-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); }
+.pinned-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); cursor: pointer; transition: border-color 0.15s; }
+.pinned-card:hover { border-color: var(--accent); }
 .pinned-card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; }
 .pinned-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pinned-card-chart { height: 200px; padding: 8px; }

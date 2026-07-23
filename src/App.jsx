@@ -770,16 +770,40 @@ export default function App() {
   }
 
   // ── Anclar un gráfico (foto congelada con el filtro actual, no reacciona a filtros nuevos) ──
+  // Igual que "Pin to dashboard" de Power BI: guarda también de dónde salió (página + filtros
+  // activos en ese momento) para poder volver a esa vista al hacer click en el anclado.
   const pinChart = (instanceId) => {
     const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data } = getChartSnapshot(instanceId)
     if (!data.length) return
     const id = `pin-${pinCounter++}`
     const title = cfg.title || CHART_META[chartType]
-    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data, title }])
+    const source = {
+      page: activePage, instanceId,
+      clickFilter, slicerFilters, rangeFilters, dateFilters,
+    }
+    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data, title, source }])
     setShowPinned(true)
   }
 
   const unpinChart = (id) => setPinnedCharts(prev => prev.filter(p => p.id !== id))
+
+  // Click en un anclado: vuelve a la página y al filtro que estaban activos cuando se ancló,
+  // y trae al frente/expande el gráfico original si todavía existe.
+  const goToPinnedSource = (pin) => {
+    const src = pin.source
+    if (!src) return
+    setClickFilter(src.clickFilter ?? null)
+    setSlicerFilters(src.slicerFilters ?? {})
+    setRangeFilters(src.rangeFilters ?? {})
+    setDateFilters(src.dateFilters ?? {})
+    if (pages.some(p => p.id === src.page)) setActivePage(src.page)
+    const stillExists = pageData[src.page]?.charts?.includes(src.instanceId)
+    if (stillExists) {
+      bringToFront(src.instanceId)
+      setExpanded(src.instanceId)
+    }
+    setShowPinned(false)
+  }
 
   // ── Compartir / incrustar un gráfico ────────────────────────────────────────
   const [shareState, setShareState] = useState(null) // { loading, error, url }
@@ -1022,7 +1046,7 @@ export default function App() {
 
         {/* Panel de gráficos anclados (fotos congeladas) */}
         {showPinned && (
-          <PinnedPanel pinned={pinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} />
+          <PinnedPanel pinned={pinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} onGoToSource={goToPinnedSource} />
         )}
       </div>
 
