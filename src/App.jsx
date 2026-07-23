@@ -21,6 +21,7 @@ import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
 import SheetSelector from './components/SheetSelector'
 import DashboardPanel from './components/DashboardPanel'
+import { apiUrl } from './api'
 import './App.css'
 
 // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -728,8 +729,8 @@ export default function App() {
     }
   }
 
-  // Datos "en bruto" de un gráfico puntual (para exportar) — misma lógica que buildChart pero sin JSX
-  function getChartExportData(instanceId) {
+  // Datos "en bruto" de un gráfico puntual (para exportar/compartir) — misma lógica que buildChart pero sin JSX
+  function getChartSnapshot(instanceId) {
     const chartType = pg.chartTypes?.[instanceId]
     const cfg              = pg.chartConfigs?.[instanceId] || {}
     const chartLabelCol    = (cfg.xCol && columns.includes(cfg.xCol)) ? cfg.xCol : labelCol
@@ -739,20 +740,56 @@ export default function App() {
     const defaultSort      = ['pie', 'funnel', 'treemap'].includes(chartType) ? 'value_desc' : 'none'
     const sortBy           = cfg.sort || defaultSort
 
+    if (chartType === 'scatter') {
+      return { chartType, cfg, labelCol: chartLabelCol, numericCols: chartNumericCols, valueCol: chartNumericCols[0], data: sampleRows(chartRows, 2000) }
+    }
     const limits = { bar: 60, waterfall: 60, line: 80, area: 80, pie: 12, funnel: 10, treemap: 30 }
-    if (chartType === 'scatter') return sampleRows(chartRows, 2000)
-    if (!(chartType in limits)) return []
+    if (!(chartType in limits)) return { chartType, cfg, labelCol: chartLabelCol, numericCols: chartNumericCols, valueCol: chartNumericCols[0], data: [] }
     const cols = ['bar', 'line', 'area'].includes(chartType) ? chartNumericCols : [chartNumericCols[0]]
-    if (!cols[0]) return []
-    return sortAggRows(aggregateRows(chartRows, chartLabelCol, cols, limits[chartType], chartAgg), chartLabelCol, cols[0], sortBy)
+    const data = cols[0]
+      ? sortAggRows(aggregateRows(chartRows, chartLabelCol, cols, limits[chartType], chartAgg), chartLabelCol, cols[0], sortBy)
+      : []
+    return { chartType, cfg, labelCol: chartLabelCol, numericCols: chartNumericCols, valueCol: cols[0], data }
   }
 
   const exportChartData = (instanceId) => {
-    const data = getChartExportData(instanceId)
+    const { data } = getChartSnapshot(instanceId)
     if (!data.length) return
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Datos')
     XLSX.writeFile(wb, `grafico-${instanceId}.xlsx`)
+  }
+
+  // ── Compartir / incrustar un gráfico ────────────────────────────────────────
+  const [shareState, setShareState] = useState(null) // { loading, error, url }
+
+  const shareChart = async (instanceId) => {
+    const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data } = getChartSnapshot(instanceId)
+    if (!data.length) return
+    setShareState({ loading: true, error: '', url: '' })
+    const payload = {
+      chartType, data, labelCol: lc, valueCol, numericCols: ncs,
+      title: cfg.title || CHART_META[chartType],
+      config: {
+        palette: cfg.palette, format: cfg.format, showLabels: cfg.showLabels,
+        showLegend: cfg.showLegend, trendLine: cfg.trendLine, scale: cfg.scale,
+      },
+    }
+    try {
+      const res = await fetch(apiUrl('/api/embeds'), {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload }),
+      })
+      if (!res.ok) {
+        setShareState({ loading: false, error: 'Necesitás haber iniciado sesión para compartir un gráfico.', url: '' })
+        return
+      }
+      const { id } = await res.json()
+      setShareState({ loading: false, error: '', url: `${window.location.origin}/embed/${id}` })
+    } catch {
+      setShareState({ loading: false, error: 'No se pudo generar el link. Probá de nuevo.', url: '' })
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1045,11 +1082,55 @@ export default function App() {
               <div className="card-actions">
                 <button className="action-btn" onClick={() => downloadChart(expanded)}>↓ PNG</button>
                 <button className="action-btn" onClick={() => exportChartData(expanded)}>↓ Datos</button>
+                <button className="action-btn" onClick={() => shareChart(expanded)}>🔗 Compartir</button>
                 <button className="action-btn close" onClick={() => setExpanded(null)}>✕</button>
               </div>
             </div>
             <div className="modal-chart" ref={el => chartRefs.current[`${expanded}-modal`] = el}>
               {buildChart(expanded, true)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Resultado de "Compartir" (link + código para incrustar) ── */}
+      {shareState && (
+        <div className="modal-overlay" onClick={() => setShareState(null)}>
+          <div className="modal-box" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="card-title">🔗 Compartir gráfico</span>
+              <button className="action-btn close" onClick={() => setShareState(null)}>✕</button>
+            </div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {shareState.loading && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Generando link…</p>}
+              {shareState.error && <p style={{ fontSize: 13, color: 'var(--red)' }}>{shareState.error}</p>}
+              {shareState.url && (
+                <>
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    Esta es una foto de los datos de ahora — si tus datos cambian después, tenés que volver a compartir.
+                    Cualquiera con este link lo puede ver, sin iniciar sesión.
+                  </p>
+                  <div className="cc-row">
+                    <label className="cc-label">Link</label>
+                    <div className="dash-save-row">
+                      <input className="dash-input" readOnly value={shareState.url} onFocus={e => e.target.select()} />
+                      <button className="dash-save-btn" onClick={() => navigator.clipboard.writeText(shareState.url)}>Copiar</button>
+                    </div>
+                  </div>
+                  <div className="cc-row">
+                    <label className="cc-label">Código para incrustar (iframe)</label>
+                    <div className="dash-save-row">
+                      <input className="dash-input" readOnly
+                        value={`<iframe src="${shareState.url}" width="600" height="400" frameborder="0"></iframe>`}
+                        onFocus={e => e.target.select()} />
+                      <button className="dash-save-btn"
+                        onClick={() => navigator.clipboard.writeText(`<iframe src="${shareState.url}" width="600" height="400" frameborder="0"></iframe>`)}>
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

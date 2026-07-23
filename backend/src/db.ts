@@ -10,6 +10,12 @@ db.exec(`
     name       TEXT    NOT NULL,
     config     TEXT    NOT NULL,
     updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS embeds (
+    id         TEXT    PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    payload    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
   )
 `)
 
