@@ -39,7 +39,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
 
   const maxVal   = Math.max(...data.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
   const isLog    = scale === 'log'
-  const ticks    = isLog ? niceLogTicks(maxVal) : niceLinearTicks(maxVal)
+  const ticks    = isLog ? niceLogTicks(maxVal, Math.max(3, Math.floor(cH / 28))) : niceLinearTicks(maxVal)
   const yMax     = isLog ? maxVal : ticks[ticks.length - 1]
   const normalize = makeYScale(yMax, scale)
 
@@ -88,11 +88,17 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
                           fill={color} fillOpacity={op} rx={2} ry={2}
                           className="svg-bar"
                           style={{ animationDelay: delay + 's' }} />
-                        {showLabels && v > 0 && (
-                          <text x={bx + barW / 2} y={cH - bh - 4} textAnchor="middle" fontSize={9} fill="#888">
-                            {fmtV(v)}
-                          </text>
-                        )}
+                        {showLabels && v > 0 && (() => {
+                          const txt = fmtV(v)
+                          // Si el número formateado es más ancho que el espacio entre barras, se omite
+                          // esa etiqueta puntual en vez de dejar que se solape con la de al lado.
+                          if (txt.length * 5.5 > barW + barGap + 10) return null
+                          return (
+                            <text x={bx + barW / 2} y={cH - bh - 4} textAnchor="middle" fontSize={9} fill="#888">
+                              {txt}
+                            </text>
+                          )
+                        })()}
                       </g>
                     )
                   })}

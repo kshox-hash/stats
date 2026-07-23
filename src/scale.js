@@ -18,11 +18,17 @@ export function niceLinearTicks(max, count = 5) {
   return ticks
 }
 
-export function niceLogTicks(max) {
+// maxCount limita cuántas décadas se muestran — si el rango cubre muchas (ej. de
+// 10 a mil millones), se salta de a 2 o de a 5 décadas para que las líneas/etiquetas
+// del eje no se amontonen y se solapen en un gráfico de altura fija.
+export function niceLogTicks(max, maxCount = 6) {
   if (max <= 0) return [0, 1]
-  const maxExp = Math.ceil(Math.log10(max + 1))
+  const maxExp   = Math.ceil(Math.log10(max + 1))
+  const decades  = maxExp + 1
+  const expStep  = Math.max(1, Math.ceil(decades / maxCount))
   const ticks = [0]
-  for (let e = 0; e <= maxExp; e++) ticks.push(Math.pow(10, e))
+  for (let e = 0; e <= maxExp; e += expStep) ticks.push(Math.pow(10, e))
+  if (ticks[ticks.length - 1] !== Math.pow(10, maxExp)) ticks.push(Math.pow(10, maxExp))
   return ticks
 }
 

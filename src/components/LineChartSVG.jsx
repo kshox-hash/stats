@@ -63,9 +63,10 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
 
   const maxVal    = Math.max(...visData.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
   const isLog     = scale === 'log'
-  const ticks     = isLog ? niceLogTicks(maxVal) : niceLinearTicks(maxVal)
+  const ticks     = isLog ? niceLogTicks(maxVal, Math.max(3, Math.floor(cH / 28))) : niceLinearTicks(maxVal)
   const yMax      = isLog ? maxVal : ticks[ticks.length - 1]
   const normalize = makeYScale(yMax, scale)
+  const slotW     = n > 1 ? cW / n : cW
 
   const xPx     = i  => n < 2 ? cW / 2 : (i / (n - 1)) * cW
   const yPx     = v  => cH - normalize(v) * cH
@@ -192,7 +193,7 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
                     r={isSel ? 7 : isHov ? 5 : 3}
                     fill={color} stroke="#fff" strokeWidth={isSel ? 2.5 : 1}
                     style={{ transition: 'r 0.1s' }} />
-                  {showLabels && (
+                  {showLabels && fmtV(v).length * 5.5 < slotW && (
                     <text x={xPx(i)} y={yPx(v) - 9} textAnchor="middle" fontSize={9} fill="#888">{fmtV(v)}</text>
                   )}
                 </g>

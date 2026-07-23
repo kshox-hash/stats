@@ -115,7 +115,7 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
                     fill={color} fillOpacity={op} rx={2}
                     className="svg-bar"
                     style={{ animationDelay: Math.min(gi * 0.018, 0.25) + 's' }} />
-                  {showLabels && (
+                  {showLabels && (`${d.isNeg ? '-' : ''}${fmtV(d.amount)}`).length * 5.5 < groupW + 10 && (
                     <text x={bx + barW / 2} y={barTop - 4} textAnchor="middle" fontSize={9} fill="#888">
                       {d.isNeg ? '-' : ''}{fmtV(d.amount)}
                     </text>
