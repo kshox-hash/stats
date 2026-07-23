@@ -47,7 +47,8 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
     onChange({ yCols: next.length ? next : numericCols.slice(0, 1) })
   }
 
-  const fieldIcon = (col) => numericCols.includes(col) ? '#' : dateCols.includes(col) ? '📅' : 'Abc'
+  const fieldType = (col) => numericCols.includes(col) ? 'num' : dateCols.includes(col) ? 'date' : 'text'
+  const fieldIcon = (col) => ({ num: '#', date: '📅', text: 'Abc' })[fieldType(col)]
 
   // ── Drag & drop de campos hacia los pozos (como el panel de Campos de Power BI) ──
   const onDropX = (e) => {
@@ -70,14 +71,18 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
           value={config.title || ''} onChange={e => onChange({ title: e.target.value })} />
       </div>
 
-      {/* Campos disponibles — arrastrar a los pozos de abajo */}
+      {/* Campos disponibles — arrastrar a los pozos de abajo. Texto = va en Eje X, Número = va en Series */}
       <div className="cc-row">
         <label className="cc-label">Campos</label>
+        <div className="cc-fields-legend">
+          <span><span className="cc-field-icon type-text">Abc</span> Texto → Eje X</span>
+          <span><span className="cc-field-icon type-num">#</span> Número → Series</span>
+        </div>
         <div className="cc-fields-list">
           {columns.map(col => (
-            <div key={col} className="cc-field-chip" draggable
+            <div key={col} className={`cc-field-chip type-${fieldType(col)}`} draggable
               onDragStart={e => e.dataTransfer.setData('text/plain', col)}>
-              <span className="cc-field-icon">{fieldIcon(col)}</span>{col}
+              <span className={`cc-field-icon type-${fieldType(col)}`}>{fieldIcon(col)}</span>{col}
             </div>
           ))}
         </div>
