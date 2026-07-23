@@ -48,17 +48,6 @@ router.post('/login', (req, res) => {
   }
 })
 
-// GET /api/auth/debug-env — temporal, solo para diagnosticar variables de entorno en Render.
-// No expone el valor del secreto, solo si está seteado y su largo.
-router.get('/debug-env', (_req, res) => {
-  res.json({
-    jwtSecretSet: !!process.env.JWT_SECRET,
-    jwtSecretLength: (process.env.JWT_SECRET || '').length,
-    nodeEnv: process.env.NODE_ENV || null,
-    frontendUrl: process.env.FRONTEND_URL || null,
-  })
-})
-
 // POST /api/auth/logout
 router.post('/logout', (_req, res) => {
   res.clearCookie('token', COOKIE_OPTS)
