@@ -21,6 +21,7 @@ import FilterPanel from './components/FilterPanel'
 import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
 import SheetSelector from './components/SheetSelector'
+import TableRelations from './components/TableRelations'
 import DashboardPanel from './components/DashboardPanel'
 import { apiUrl } from './api'
 import './App.css'
@@ -101,6 +102,52 @@ function renameEmptyHeaders(rows) {
     return obj
   })
   return { rows: renamedRows, autoNamed }
+}
+
+// Combina varias tablas relacionadas en una sola tabla plana (tipo VLOOKUP/left-join),
+// recorriendo el grafo de relaciones en anchura desde la tabla principal. Las columnas
+// de cada tabla relacionada (menos la columna clave) se agregan con el prefijo "Tabla.".
+// Devuelve también qué tablas quedaron sin conectar (no se incluyen en el resultado).
+function mergeTables(tables, relations, principalName) {
+  const adjacency = {}
+  for (const r of relations) {
+    (adjacency[r.tableA] ??= []).push({ neighbor: r.tableB, myCol: r.colA, neighborCol: r.colB })
+    ;(adjacency[r.tableB] ??= []).push({ neighbor: r.tableA, myCol: r.colB, neighborCol: r.colA })
+  }
+
+  let result = tables[principalName].map(row => ({ ...row }))
+  const visited = new Set([principalName])
+  const queue = [principalName]
+
+  while (queue.length) {
+    const current = queue.shift()
+    for (const edge of adjacency[current] || []) {
+      if (visited.has(edge.neighbor)) continue
+      visited.add(edge.neighbor)
+      queue.push(edge.neighbor)
+
+      const neighborRows = tables[edge.neighbor]
+      const index = new Map()
+      for (const nrow of neighborRows) {
+        const key = String(nrow[edge.neighborCol] ?? '')
+        if (!index.has(key)) index.set(key, nrow)
+      }
+      const extraCols = neighborRows.length ? Object.keys(neighborRows[0]).filter(c => c !== edge.neighborCol) : []
+      // Si "current" no es la principal, su columna clave ya quedó prefijada en un salto anterior
+      const myField = current === principalName ? edge.myCol : `${current}.${edge.myCol}`
+
+      result = result.map(row => {
+        const key = String(row[myField] ?? '')
+        const match = index.get(key)
+        const extra = {}
+        for (const c of extraCols) extra[`${edge.neighbor}.${c}`] = match ? match[c] : ''
+        return { ...row, ...extra }
+      })
+    }
+  }
+
+  const unreached = Object.keys(tables).filter(n => !visited.has(n))
+  return { rows: result, unreached }
 }
 
 function detectColumns(rows) {
@@ -247,7 +294,8 @@ export default function App() {
   const [error, setError]       = useState('')
   const [dragging, setDragging] = useState(false)
   const [pendingReview, setPendingReview]   = useState(null) // { rows, columns, autoNamed } — revisión de columnas sin título
-  const [pendingSheets, setPendingSheets]   = useState(null) // { wb } — elegir pestaña cuando el archivo tiene más de una
+  const [pendingSheets, setPendingSheets]   = useState(null) // { wb } — elegir pestañas cuando el archivo tiene más de una
+  const [pendingTables, setPendingTables]   = useState(null) // { [nombreHoja]: rows[] } — relacionar cuando se eligieron 2+ hojas
 
   // Edición de la tabla (doble clic en encabezado o celda)
   const [editingHeader, setEditingHeader] = useState(null) // nombre de columna que se está renombrando
@@ -453,10 +501,32 @@ export default function App() {
     }
   }
 
-  const selectSheet = (sheetName) => {
+  const selectSheets = (sheetNames) => {
     const wb = pendingSheets.wb
     setPendingSheets(null)
-    loadSheet(wb, sheetName)
+    if (sheetNames.length === 1) {
+      loadSheet(wb, sheetNames[0])
+      return
+    }
+    // 2+ hojas: cada una queda como tabla separada (sin revisión de encabezados
+    // en blanco por tabla, para no repetir ese paso N veces) hasta relacionarlas.
+    const tables = {}
+    for (const name of sheetNames) {
+      const { rows: data } = renameEmptyHeaders(sheetToRows(wb, name))
+      tables[name] = data
+    }
+    setPendingTables(tables)
+  }
+
+  const cancelRelations = () => {
+    setPendingTables(null)
+    setFileName('')
+  }
+
+  const confirmRelations = ({ principal, relations }) => {
+    const { rows: merged } = mergeTables(pendingTables, relations, principal)
+    setPendingTables(null)
+    applyLoadedRows(merged)
   }
 
   // ── Guardar / cargar dashboard completo ─────────────────────────────────────
@@ -1256,12 +1326,21 @@ export default function App() {
         />
       )}
 
-      {/* ── Selección de pestaña cuando el archivo tiene más de una ── */}
+      {/* ── Selección de hojas cuando el archivo tiene más de una ── */}
       {pendingSheets && (
         <SheetSelector
           sheets={pendingSheets.wb.SheetNames}
-          onSelect={selectSheet}
+          onConfirm={selectSheets}
           onCancel={cancelSheetSelect}
+        />
+      )}
+
+      {/* ── Relacionar tablas cuando se eligieron 2+ hojas ── */}
+      {pendingTables && (
+        <TableRelations
+          tables={pendingTables}
+          onConfirm={confirmRelations}
+          onCancel={cancelRelations}
         />
       )}
 
