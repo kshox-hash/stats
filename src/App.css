@@ -215,6 +215,16 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 .cell-edit-input { width: 100%; min-width: 60px; padding: 2px 4px; border: 1px solid var(--accent); border-radius: 3px; font: inherit; background: var(--surface); color: var(--text); }
 .table-more { text-align: center; padding: 10px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
 .chart-msg { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ── Slicer visual (en el canvas, igual que un gráfico más) ── */
+.slicer-visual { height: 100%; overflow-y: auto; padding: 4px; }
+.slicer-timeline { height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 8px 4px; }
+.slicer-timeline-clear { align-self: flex-end; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; padding: 3px 8px; cursor: pointer; }
+.slicer-timeline-clear:hover { border-color: var(--accent); color: var(--accent); }
+.slicer-timeline-track { display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; flex: 1; }
+.slicer-month { flex: 1 0 auto; min-width: 52px; text-align: center; padding: 8px 6px; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; }
+.slicer-month:hover { border-color: #b0b0d0; }
+.slicer-month.active { background: rgba(0,120,212,0.12); border-color: rgba(0,120,212,0.5); color: var(--accent); font-weight: 600; }
 .agg-note  { display: block; font-size: 10px; color: #aaa; padding: 0 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Filter Panel (derecha) ── */

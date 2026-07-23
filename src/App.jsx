@@ -15,6 +15,7 @@ import WaterfallChartSVG from './components/WaterfallChartSVG'
 import FunnelChartSVG from './components/FunnelChartSVG'
 import TreemapSVG from './components/TreemapSVG'
 import GaugeSVG from './components/GaugeSVG'
+import SlicerVisual from './components/SlicerVisual'
 import TabBar from './components/TabBar'
 import FilterPanel from './components/FilterPanel'
 import ChartConfig, { PALETTES } from './components/ChartConfig'
@@ -33,6 +34,7 @@ const CHART_GROUPS = [
   { label: 'Tendencia',   ids: ['line', 'area'] },
   { label: 'Proporción',  ids: ['pie', 'funnel', 'treemap'] },
   { label: 'Relación',    ids: ['scatter'] },
+  { label: 'Filtros',     ids: ['slicer'] },
 ]
 const CHART_META = {
   bar:       'Barras',
@@ -44,6 +46,7 @@ const CHART_META = {
   treemap:   'Treemap',
   scatter:   'Dispersión',
   gauge:     'Gauge',
+  slicer:    'Slicer',
 }
 
 // ── Utilidades ───────────────────────────────────────────────────────────────
@@ -620,6 +623,61 @@ export default function App() {
     saveAs(dataUrl, `grafico-${refKey}.png`)
   }
 
+  // Excel con los gráficos incrustados como imagen (xlsx community no soporta gráficos
+  // nativos editables -- esto da un archivo que se ve igual, con la imagen + su tabla al lado).
+  const [exportingCharts, setExportingCharts] = useState(false)
+  const exportExcelWithCharts = async () => {
+    const chartIds = pg.charts.filter(id => pg.chartTypes?.[id] !== 'slicer')
+    if (!chartIds.length) return
+    setExportingCharts(true)
+    try {
+      const { default: ExcelJS } = await import('exceljs')
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet('Dashboard')
+      let row = 1
+      const DATA_COL = 11 // columna K en adelante, para no tapar la imagen
+
+      for (const instanceId of chartIds) {
+        const chartType = pg.chartTypes?.[instanceId]
+        const el = chartRefs.current[instanceId]
+        if (!el) continue
+
+        const title = pg.chartConfigs?.[instanceId]?.title || CHART_META[chartType]
+        ws.getCell(row, 1).value = title
+        ws.getCell(row, 1).font = { bold: true, size: 13 }
+
+        const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#fff' })
+        const buffer = await (await fetch(dataUrl)).arrayBuffer()
+        const imgId = wb.addImage({ buffer, extension: 'png' })
+        ws.addImage(imgId, { tl: { col: 0, row }, ext: { width: 480, height: 280 } })
+
+        const { data, labelCol: lc, numericCols: ncs, valueCol } = getChartSnapshot(instanceId)
+        const cols = ncs?.length ? ncs : (valueCol ? [valueCol] : [])
+        if (lc && cols.length) {
+          ws.getCell(row, DATA_COL).value = lc
+          ws.getCell(row, DATA_COL).font = { bold: true }
+          cols.forEach((c, i) => {
+            const cell = ws.getCell(row, DATA_COL + 1 + i)
+            cell.value = c
+            cell.font = { bold: true }
+          })
+          data.forEach((r, ri) => {
+            ws.getCell(row + 1 + ri, DATA_COL).value = r[lc]
+            cols.forEach((c, i) => { ws.getCell(row + 1 + ri, DATA_COL + 1 + i).value = r[c] })
+          })
+        }
+
+        row += 17
+      }
+
+      const buf = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      saveAs(blob, `dashboard-graficos-${Date.now()}.xlsx`)
+    } finally {
+      setExportingCharts(false)
+    }
+  }
+
   // ── Construir gráfico ──────────────────────────────────────────────────────
   // instanceId identifica un gráfico puntual en la página (puede haber varios del mismo tipo)
   function buildChart(instanceId, fullscreen = false) {
@@ -663,6 +721,20 @@ export default function App() {
       : null
 
     switch (chartType) {
+
+      case 'slicer': {
+        const col = chartLabelCol
+        const kind = numericCols.includes(col) ? 'numeric' : dateCols.includes(col) ? 'date' : 'categorical'
+        return (
+          <SlicerVisual col={col} rows={rows} kind={kind}
+            slicerValue={slicerFilters[col]}
+            onToggleSlicer={val => toggleSlicer(col, val)}
+            dateValue={dateFilters[col]}
+            onDateChange={range => setDateFilters(prev => ({ ...prev, [col]: range }))}
+            rangeValue={rangeFilters[col]}
+            onRangeChange={range => setRangeFilters(prev => ({ ...prev, [col]: range }))} />
+        )
+      }
 
       case 'bar': {
         const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, chartNumericCols, 60, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
@@ -922,6 +994,10 @@ export default function App() {
                 )}
               </div>
               <button className="hbtn" onClick={exportExcel} title="Exportar datos a Excel">↓ Excel</button>
+              <button className="hbtn" onClick={exportExcelWithCharts} disabled={exportingCharts}
+                title="Exportar un Excel con los gráficos de esta página incrustados como imagen">
+                {exportingCharts ? '...' : '📊 Excel con gráficos'}
+              </button>
               <button className="hbtn" onClick={exportPDF}   title="Exportar dashboard a PDF">↓ PDF</button>
               <button className={`hbtn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(v => !v)}>
                 Filtros {totalFilters > 0 && <span className="filter-count">{totalFilters}</span>}
@@ -1295,6 +1371,7 @@ function ChartIcon({ type, active, size = 15 }) {
     case 'treemap':   return <svg width={size} height={size} viewBox="0 0 18 18" fill={c}><rect x="1" y="1" width="9" height="9" rx="1" opacity="0.9"/><rect x="12" y="1" width="5" height="4" rx="1" opacity="0.7"/><rect x="12" y="7" width="5" height="3" rx="1" opacity="0.5"/><rect x="1" y="12" width="5" height="5" rx="1" opacity="0.6"/><rect x="8" y="12" width="9" height="5" rx="1" opacity="0.4"/></svg>
     case 'scatter':   return <svg width={size} height={size} viewBox="0 0 18 18" fill={c}><circle cx="3" cy="14" r="1.5"/><circle cx="7" cy="10" r="1.5"/><circle cx="10" cy="12" r="1.5"/><circle cx="13" cy="6" r="1.5"/><circle cx="16" cy="4" r="1.5"/><circle cx="8" cy="5" r="1.5"/></svg>
     case 'gauge':     return <svg width={size} height={size} viewBox="0 0 18 18" fill="none"><path d="M2 13 A7 7 0 0 1 16 13" stroke={c} strokeWidth="2.5" strokeLinecap="round"/><path d="M9 13 L12 7" stroke={c} strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="13" r="1.5" fill={c}/></svg>
+    case 'slicer':    return <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round"><path d="M2 5h14M5 9h8M7.5 13h3" fill="none"/></svg>
     default:          return null
   }
 }

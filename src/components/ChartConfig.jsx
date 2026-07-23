@@ -40,6 +40,7 @@ const FORMATS = [
 export default function ChartConfig({ chartId, config, columns, numericCols, dateCols = [], onChange }) {
   const yCols = config.yCols || numericCols
   const xCol  = config.xCol || columns[0] || ''
+  const isSlicer = chartId === 'slicer'
   const defaultSort = ['pie', 'funnel', 'treemap'].includes(chartId) ? 'value_desc' : 'none'
 
   const removeYCol = (col) => {
@@ -74,10 +75,12 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
       {/* Campos disponibles — arrastrar a los pozos de abajo. Texto = va en Eje X, Número = va en Series */}
       <div className="cc-row">
         <label className="cc-label">Campos</label>
-        <div className="cc-fields-legend">
-          <span><span className="cc-field-icon type-text">Abc</span> Texto → Eje X</span>
-          <span><span className="cc-field-icon type-num">#</span> Número → Series</span>
-        </div>
+        {!isSlicer && (
+          <div className="cc-fields-legend">
+            <span><span className="cc-field-icon type-text">Abc</span> Texto → Eje X</span>
+            <span><span className="cc-field-icon type-num">#</span> Número → Series</span>
+          </div>
+        )}
         <div className="cc-fields-list">
           {columns.map(col => (
             <div key={col} className={`cc-field-chip type-${fieldType(col)}`} draggable
@@ -88,9 +91,9 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
         </div>
       </div>
 
-      {/* Pozo: Eje X / Categoría */}
+      {/* Pozo: Eje X / Categoría (o "Campo" único si es un Slicer) */}
       <div className="cc-row">
-        <label className="cc-label">Eje X / Categoría</label>
+        <label className="cc-label">{isSlicer ? 'Campo' : 'Eje X / Categoría'}</label>
         <div className="cc-well" onDragOver={e => e.preventDefault()} onDrop={onDropX}>
           {xCol
             ? <span className="cc-well-chip">{fieldIcon(xCol)} {xCol}</span>
@@ -99,7 +102,7 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
       </div>
 
       {/* Pozo: Series (Eje Y) */}
-      {numericCols.length > 0 && (
+      {numericCols.length > 0 && !isSlicer && (
         <div className="cc-row">
           <label className="cc-label">Series (Eje Y)</label>
           <div className="cc-well cc-well-multi" onDragOver={e => e.preventDefault()} onDrop={onDropY}>
@@ -149,13 +152,15 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
       )}
 
       {/* Formato de número */}
-      <div className="cc-row">
-        <label className="cc-label">Formato de número</label>
-        <select className="cc-select" value={config.format || 'auto'}
-          onChange={e => onChange({ format: e.target.value })}>
-          {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-      </div>
+      {!isSlicer && (
+        <div className="cc-row">
+          <label className="cc-label">Formato de número</label>
+          <select className="cc-select" value={config.format || 'auto'}
+            onChange={e => onChange({ format: e.target.value })}>
+            {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Etiquetas */}
       {LABEL_CHARTS.includes(chartId) && (
@@ -182,20 +187,22 @@ export default function ChartConfig({ chartId, config, columns, numericCols, dat
       )}
 
       {/* Paleta */}
-      <div className="cc-row">
-        <label className="cc-label">Paleta</label>
-        <div className="cc-palettes">
-          {Object.entries(PALETTES).map(([name, colors]) => (
-            <button key={name} title={name}
-              className={`cc-pal ${(config.palette || 'default') === name ? 'active' : ''}`}
-              onClick={() => onChange({ palette: name })}>
-              {colors.slice(0, 5).map((c, i) => (
-                <span key={i} style={{ background: c, flex: 1, height: '100%' }} />
-              ))}
-            </button>
-          ))}
+      {!isSlicer && (
+        <div className="cc-row">
+          <label className="cc-label">Paleta</label>
+          <div className="cc-palettes">
+            {Object.entries(PALETTES).map(([name, colors]) => (
+              <button key={name} title={name}
+                className={`cc-pal ${(config.palette || 'default') === name ? 'active' : ''}`}
+                onClick={() => onChange({ palette: name })}>
+                {colors.slice(0, 5).map((c, i) => (
+                  <span key={i} style={{ background: c, flex: 1, height: '100%' }} />
+                ))}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
