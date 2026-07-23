@@ -17,3 +17,12 @@ export function formatValue(n, mode = 'auto') {
       return Number.isInteger(n) ? n.toLocaleString('es-CL') : n.toFixed(2)
   }
 }
+
+// Devuelve el tamaño de fuente más grande de la lista que entra en maxWidth,
+// o 0 si ni el más chico entra (ahí se prefiere ocultar la etiqueta a que se solape).
+export function fitLabelFontSize(text, maxWidth, sizes = [9, 8, 7]) {
+  for (const size of sizes) {
+    if (text.length * size * 0.62 <= maxWidth) return size
+  }
+  return 0
+}

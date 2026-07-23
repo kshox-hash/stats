@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { formatValue } from '../format'
+import { formatValue, fitLabelFontSize } from '../format'
 import { niceLinearTicks, niceLogTicks, makeYScale } from '../scale'
 
 const ML = 52, MR = 12, MT = 10, MB = 54
@@ -10,14 +10,14 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
   const fmtV = v => formatValue(v, format)
   const outerRef  = useRef(null)
   const wrapRef   = useRef(null)
-  const [wrapW, setWrapW]     = useState(600)
+  const [wrapSize, setWrapSize] = useState({ w: 600, h: 260 })
   const [animKey, setAnimKey] = useState(0)
   const [tooltip, setTooltip] = useState(null)
 
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const ro = new ResizeObserver(([e]) => setWrapW(e.contentRect.width))
+    const ro = new ResizeObserver(([e]) => setWrapSize({ w: e.contentRect.width, h: e.contentRect.height }))
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -32,8 +32,8 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
   const barW    = nS === 1 ? 34 : 16
   const barGap  = 2
   const groupW  = nS * barW + (nS - 1) * barGap + 14
-  const svgH    = 260
-  const svgW    = Math.max(nG * groupW + ML + MR, wrapW)
+  const svgH    = Math.max(wrapSize.h, 120)
+  const svgW    = Math.max(nG * groupW + ML + MR, wrapSize.w)
   const cW      = svgW - ML - MR
   const cH      = svgH - MT - MB
 
@@ -90,11 +90,12 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
                           style={{ animationDelay: delay + 's' }} />
                         {showLabels && v > 0 && (() => {
                           const txt = fmtV(v)
-                          // Si el número formateado es más ancho que el espacio entre barras, se omite
-                          // esa etiqueta puntual en vez de dejar que se solape con la de al lado.
-                          if (txt.length * 5.5 > barW + barGap + 10) return null
+                          // El tamaño de letra se achica para entrar en el espacio entre barras;
+                          // solo se oculta si ni con la letra más chica entra (evita el solapamiento).
+                          const fs = fitLabelFontSize(txt, barW + barGap + 10)
+                          if (!fs) return null
                           return (
-                            <text x={bx + barW / 2} y={cH - bh - 4} textAnchor="middle" fontSize={9} fill="#888">
+                            <text x={bx + barW / 2} y={cH - bh - 4} textAnchor="middle" fontSize={fs} fill="#888">
                               {txt}
                             </text>
                           )

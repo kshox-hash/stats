@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { formatValue } from '../format'
+import { formatValue, fitLabelFontSize } from '../format'
 import { niceLinearTicks, niceLogTicks, makeYScale } from '../scale'
 
 const ML = 52, MR = 16, MT = 10, MB = 46
@@ -139,9 +139,12 @@ export default function AreaChartSVG({ data, labelCol, numericCols, palette, sho
                     r={selIdxs.includes(i) ? 6 : i === hoverIdx ? 4 : 2.5}
                     fill={color} stroke="#fff" strokeWidth={selIdxs.includes(i) ? 2 : 1}
                     style={{ transition: 'r 0.1s' }} />
-                  {showLabels && fmtV(v).length * 5.5 < slotW && (
-                    <text x={xPx(i)} y={yPx(v) - 8} textAnchor="middle" fontSize={9} fill="#888">{fmtV(v)}</text>
-                  )}
+                  {showLabels && (() => {
+                    const txt = fmtV(v)
+                    const fs = fitLabelFontSize(txt, slotW)
+                    if (!fs) return null
+                    return <text x={xPx(i)} y={yPx(v) - 8} textAnchor="middle" fontSize={fs} fill="#888">{txt}</text>
+                  })()}
                 </g>
               )
             })

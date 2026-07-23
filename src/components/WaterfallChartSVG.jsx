@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { formatValue } from '../format'
+import { formatValue, fitLabelFontSize } from '../format'
 
 const ML = 52, MR = 12, MT = 10, MB = 54
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C']
@@ -23,13 +23,13 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
   const fmtV = v => formatValue(v, format)
   const outerRef = useRef(null)
   const wrapRef  = useRef(null)
-  const [wrapW, setWrapW]     = useState(600)
+  const [wrapSize, setWrapSize] = useState({ w: 600, h: 260 })
   const [animKey, setAnimKey] = useState(0)
   const [tooltip, setTooltip] = useState(null)
 
   useEffect(() => {
     const el = wrapRef.current; if (!el) return
-    const ro = new ResizeObserver(([e]) => setWrapW(e.contentRect.width))
+    const ro = new ResizeObserver(([e]) => setWrapSize({ w: e.contentRect.width, h: e.contentRect.height }))
     ro.observe(el); return () => ro.disconnect()
   }, [])
 
@@ -56,8 +56,8 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
   const nG    = wfData.length
   const barW  = 36
   const groupW = barW + 14
-  const svgH  = 260
-  const svgW  = Math.max(nG * groupW + ML + MR, wrapW)
+  const svgH  = Math.max(wrapSize.h, 120)
+  const svgW  = Math.max(nG * groupW + ML + MR, wrapSize.w)
   const cW    = svgW - ML - MR
   const cH    = svgH - MT - MB
 
@@ -115,11 +115,16 @@ export default function WaterfallChartSVG({ data, labelCol, valueCol, palette, s
                     fill={color} fillOpacity={op} rx={2}
                     className="svg-bar"
                     style={{ animationDelay: Math.min(gi * 0.018, 0.25) + 's' }} />
-                  {showLabels && (`${d.isNeg ? '-' : ''}${fmtV(d.amount)}`).length * 5.5 < groupW + 10 && (
-                    <text x={bx + barW / 2} y={barTop - 4} textAnchor="middle" fontSize={9} fill="#888">
-                      {d.isNeg ? '-' : ''}{fmtV(d.amount)}
-                    </text>
-                  )}
+                  {showLabels && (() => {
+                    const txt = `${d.isNeg ? '-' : ''}${fmtV(d.amount)}`
+                    const fs = fitLabelFontSize(txt, groupW + 10)
+                    if (!fs) return null
+                    return (
+                      <text x={bx + barW / 2} y={barTop - 4} textAnchor="middle" fontSize={fs} fill="#888">
+                        {txt}
+                      </text>
+                    )
+                  })()}
                 </g>
               )
             })}
