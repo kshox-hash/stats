@@ -6,12 +6,12 @@ const DEFAULT_H = 380
 const MIN_W     = 320
 const MIN_H     = 200
 
-export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, onPin, initialPos, onDragEnd, zIndex, onFocus }) {
+export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, onPin, anchored, initialPos, initialSize, onDragEnd, zIndex, onFocus }) {
   const panelRef = useRef(null)
   const ghostRef = useRef(null)
   const pos      = useRef(initialPos ?? { x: 60 + Math.random() * 200, y: 56 + Math.random() * 100 })
-  const sizeRef  = useRef({ w: DEFAULT_W, h: DEFAULT_H })
-  const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H })
+  const sizeRef  = useRef({ w: initialSize?.w ?? DEFAULT_W, h: initialSize?.h ?? DEFAULT_H })
+  const [size, setSize] = useState({ w: initialSize?.w ?? DEFAULT_W, h: initialSize?.h ?? DEFAULT_H })
 
   // ── Drag desde el overlay ────────────────────────────────────────────────
   const onMouseDownDrag = (e) => {
@@ -67,13 +67,13 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, o
       <div ref={ghostRef} className="lp-ghost" />
       <div
         ref={panelRef}
-        className="lp"
+        className={`lp ${anchored ? 'lp-anchored' : ''}`}
         style={{ width: size.w, height: size.h, transform: `translate3d(${pos.current.x}px,${pos.current.y}px,0)`, zIndex: zIndex ?? 200 }}
         onMouseDown={onFocus}
       >
         {/* Overlay que aparece al hover: drag + botones */}
         <div className="lp-overlay" onMouseDown={onMouseDownDrag}>
-          <span className="lp-overlay-title">{icon}{title}</span>
+          <span className="lp-overlay-title">{icon}{title}{anchored && <span className="lp-anchored-badge" title="Anclado: filtro congelado">📌</span>}</span>
           <div className="lp-overlay-btns">
             {onConfig && (
               <button onMouseDown={e => e.stopPropagation()} onClick={onConfig} title="Configurar gráfico">⚙</button>
@@ -82,7 +82,8 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, o
               <button onMouseDown={e => e.stopPropagation()} onClick={onExpand} title="Pantalla completa">⤢</button>
             )}
             {onPin && (
-              <button onMouseDown={e => e.stopPropagation()} onClick={onPin} title="Anclar (congelar con el filtro actual)">📌</button>
+              <button className={anchored ? 'lp-pin-active' : ''} onMouseDown={e => e.stopPropagation()} onClick={onPin}
+                title={anchored ? 'Desanclar (volver a los filtros en vivo)' : 'Anclar (congelar con el filtro actual)'}>📌</button>
             )}
             <button className="lp-close" onMouseDown={e => e.stopPropagation()} onClick={onClose} title="Cerrar">✕</button>
           </div>

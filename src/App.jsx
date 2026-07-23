@@ -21,8 +21,6 @@ import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
 import SheetSelector from './components/SheetSelector'
 import DashboardPanel from './components/DashboardPanel'
-import PinnedChart from './components/PinnedChart'
-import PinnedPanel from './components/PinnedPanel'
 import { apiUrl } from './api'
 import './App.css'
 
@@ -223,17 +221,6 @@ function applyFrozenFilters(rows, filters) {
   return r
 }
 
-// Misma lógica de agregación que usan los gráficos en vivo, factorizada para poder
-// recalcular un gráfico anclado con datos frescos (ver applyFrozenFilters arriba)
-function computeChartData(rows, chartType, labelCol, numericCols, agg, sortBy) {
-  if (chartType === 'scatter') return sampleRows(rows, 2000)
-  const limits = { bar: 60, waterfall: 60, line: 80, area: 80, pie: 12, funnel: 10, treemap: 30 }
-  if (!(chartType in limits)) return []
-  const cols = ['bar', 'line', 'area'].includes(chartType) ? numericCols : [numericCols[0]]
-  if (!cols[0]) return []
-  return sortAggRows(aggregateRows(rows, labelCol, cols, limits[chartType], agg), labelCol, cols[0], sortBy)
-}
-
 // Renombra una clave dentro de un objeto plano (filtros/KPIs por columna), preservando el resto
 function renameKey(obj, oldKey, newKey) {
   if (!(oldKey in obj)) return obj
@@ -246,7 +233,6 @@ const freshPage = () => ({ charts: [], chartTypes: {}, chartConfigs: {} })
 
 let pageCounter = 1
 let instanceCounter = 1
-let pinCounter = 1
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -295,9 +281,9 @@ export default function App() {
   const [showDashPanel, setShowDashPanel] = useState(false)
   const [globalTheme, setGlobalTheme]     = useState('default') // tema de color aplicado a todos los gráficos que no tengan paleta propia
   const [showThemePicker, setShowThemePicker] = useState(false)
-  const [pinnedCharts, setPinnedCharts] = useState([]) // gráficos "anclados": foto congelada con el filtro de cuando se anclaron
-  const [showPinned, setShowPinned]     = useState(false)
-  const [tableCollapsed, setTableCollapsed] = useState(false)
+  // gráficos anclados: instanceId -> filtros congelados de cuando se ancló (sigue siendo el mismo panel, en su lugar)
+  const [anchoredCharts, setAnchoredCharts] = useState({})
+  const [showTable, setShowTable] = useState(true)
   const fileInputRef = useRef(null)
   const chartRefs    = useRef({})
   const mainRef      = useRef(null)
@@ -451,7 +437,7 @@ export default function App() {
 
   // ── Guardar / cargar dashboard completo ─────────────────────────────────────
   const currentDashboardConfig = () => ({
-    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme, pinnedCharts,
+    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme, anchoredCharts,
   })
 
   const loadDashboardConfig = (config) => {
@@ -473,9 +459,7 @@ export default function App() {
     setKpiAgg(config.kpiAgg || {})
     setKpiThresholds(config.kpiThresholds || {})
     setGlobalTheme(config.globalTheme || 'default')
-    setPinnedCharts(config.pinnedCharts || [])
-    const maxPin = Math.max(0, ...(config.pinnedCharts || []).map(p => parseInt(String(p.id).split('-').pop(), 10) || 0))
-    pinCounter = maxPin + 1
+    setAnchoredCharts(config.anchoredCharts || {})
     setClickFilter(null)
     setSlicerFilters({})
     setRangeFilters({})
@@ -634,6 +618,10 @@ export default function App() {
     const sortBy            = cfg.sort || defaultSort
     const onClick           = (value, additive) => applyFilter(chartLabelCol, value, additive)
 
+    // Si está anclado, usa el filtro congelado de cuando se ancló en vez de los filtros
+    // globales actuales — el resto (clicks, tooltips, cross-filter) sigue funcionando normal.
+    const rowsForChart = anchoredCharts[instanceId] ? applyFrozenFilters(rows, anchoredCharts[instanceId]) : chartRows
+
     const aggNote = (original, agg) => original > agg.length
       ? <span className="agg-note">Agrupado por {chartLabelCol} · {agg.length} categorías de {original} filas</span>
       : null
@@ -641,10 +629,10 @@ export default function App() {
     switch (chartType) {
 
       case 'bar': {
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 60, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, chartNumericCols, 60, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <BarChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} showLegend={showLegend} format={format} scale={scale}
@@ -657,10 +645,10 @@ export default function App() {
       case 'waterfall': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 60, chartAgg), chartLabelCol, col, sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, [col], 60, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <WaterfallChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} showLabels={showLabels} format={format}
@@ -671,10 +659,10 @@ export default function App() {
       }
 
       case 'line': {
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <LineChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
@@ -685,10 +673,10 @@ export default function App() {
       }
 
       case 'area': {
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, chartNumericCols, 80, chartAgg), chartLabelCol, chartNumericCols[0], sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <AreaChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
@@ -701,10 +689,10 @@ export default function App() {
       case 'pie': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 12, chartAgg), chartLabelCol, col, sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, [col], 12, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <PieChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} showLegend={showLegend} format={format}
@@ -717,10 +705,10 @@ export default function App() {
       case 'funnel': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 10, chartAgg), chartLabelCol, col, sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, [col], 10, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <FunnelChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} format={format}
@@ -733,10 +721,10 @@ export default function App() {
       case 'treemap': {
         const col = chartNumericCols[0]
         if (!col) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
-        const agg = sortAggRows(aggregateRows(chartRows, chartLabelCol, [col], 30, chartAgg), chartLabelCol, col, sortBy)
+        const agg = sortAggRows(aggregateRows(rowsForChart, chartLabelCol, [col], 30, chartAgg), chartLabelCol, col, sortBy)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {aggNote(chartRows.length, agg)}
+            {aggNote(rowsForChart.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <TreemapSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} format={format}
@@ -749,11 +737,11 @@ export default function App() {
       case 'scatter': {
         if (!chartNumericCols.length) return <p className="chart-msg">Necesitás al menos una columna numérica.</p>
         const MAX_SCATTER = 2000
-        const scatterData = sampleRows(chartRows, MAX_SCATTER)
+        const scatterData = sampleRows(rowsForChart, MAX_SCATTER)
         return (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {chartRows.length > MAX_SCATTER && (
-              <span className="agg-note">Muestra de {scatterData.length.toLocaleString()} de {chartRows.length.toLocaleString()} filas</span>
+            {rowsForChart.length > MAX_SCATTER && (
+              <span className="agg-note">Muestra de {scatterData.length.toLocaleString()} de {rowsForChart.length.toLocaleString()} filas</span>
             )}
             <div style={{ flex: 1, minHeight: 0 }}>
               <ScatterChartSVG data={scatterData} labelCol={chartLabelCol} numericCols={chartNumericCols}
@@ -807,51 +795,19 @@ export default function App() {
     XLSX.writeFile(wb, `grafico-${instanceId}.xlsx`)
   }
 
-  // ── Anclar un gráfico (filtro congelado, datos en vivo — como el pin de Power BI) ──
-  // Se guarda con qué filtros (slicers/rango/fecha) se ancló y de qué página/gráfico salió,
-  // pero NO una foto fija de los datos: esos se recalculan siempre desde `rows` actual, así
-  // que si editás una celda o cambian los datos, el anclado se actualiza solo.
-  const pinChart = (instanceId) => {
-    const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol } = getChartSnapshot(instanceId)
-    const id = `pin-${pinCounter++}`
-    const title = cfg.title || CHART_META[chartType]
-    const source = {
-      page: activePage, instanceId,
-      clickFilter, slicerFilters, rangeFilters, dateFilters,
-    }
-    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, title, source }])
-    setShowPinned(true)
-  }
-
-  // Recalcula los datos de cada anclado con las filas actuales + el filtro que tenía al anclarse
-  const livePinnedCharts = useMemo(() => pinnedCharts.map(p => ({
-    ...p,
-    data: computeChartData(
-      applyFrozenFilters(rows, p.source),
-      p.chartType, p.labelCol, p.numericCols,
-      p.cfg?.agg || 'sum',
-      p.cfg?.sort || (['pie', 'funnel', 'treemap'].includes(p.chartType) ? 'value_desc' : 'none')
-    ),
-  })), [pinnedCharts, rows])
-
-  const unpinChart = (id) => setPinnedCharts(prev => prev.filter(p => p.id !== id))
-
-  // Click en un anclado: vuelve a la página y al filtro que estaban activos cuando se ancló,
-  // y trae al frente/expande el gráfico original si todavía existe.
-  const goToPinnedSource = (pin) => {
-    const src = pin.source
-    if (!src) return
-    setClickFilter(src.clickFilter ?? null)
-    setSlicerFilters(src.slicerFilters ?? {})
-    setRangeFilters(src.rangeFilters ?? {})
-    setDateFilters(src.dateFilters ?? {})
-    if (pages.some(p => p.id === src.page)) setActivePage(src.page)
-    const stillExists = pageData[src.page]?.charts?.includes(src.instanceId)
-    if (stillExists) {
-      bringToFront(src.instanceId)
-      setExpanded(src.instanceId)
-    }
-    setShowPinned(false)
+  // ── Anclar un gráfico en su lugar (como el pin de Power BI, pero sin mover el panel) ──
+  // Anclado = se congela el filtro (slicers/rango/fecha/cross-filter) de este momento; el
+  // panel sigue siendo el mismo, en su misma posición y tamaño, con toda su funcionalidad
+  // normal (tooltips, cross-filter). Solo deja de seguir los filtros globales que cambien
+  // después, hasta que lo desanclás (vuelve a estar en vivo).
+  const toggleAnchor = (instanceId) => {
+    setAnchoredCharts(prev => {
+      if (prev[instanceId]) {
+        const { [instanceId]: _omit, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [instanceId]: { clickFilter, slicerFilters, rangeFilters, dateFilters } }
+    })
   }
 
   // ── Compartir / incrustar un gráfico ────────────────────────────────────────
@@ -910,11 +866,11 @@ export default function App() {
 
         <div className="header-actions">
           <button className="hbtn" onClick={() => setShowDashPanel(true)} title="Guardar o cargar un dashboard">💾 Dashboards</button>
-          <button className={`hbtn ${showPinned ? 'active' : ''}`} onClick={() => setShowPinned(v => !v)} title="Gráficos anclados (fotos congeladas con su filtro)">
-            📌 Anclados {pinnedCharts.length > 0 && <span className="filter-count">{pinnedCharts.length}</span>}
-          </button>
           {rows.length > 0 && (
             <>
+              {!showTable && (
+                <button className="hbtn" onClick={() => setShowTable(true)} title="Mostrar la ventana de datos">📋 Tabla</button>
+              )}
               <div style={{ position: 'relative' }}>
                 <button className="hbtn" onClick={() => setShowThemePicker(v => !v)} title="Tema de color del dashboard">🎨 Tema</button>
                 {showThemePicker && (
@@ -1002,74 +958,6 @@ export default function App() {
                   thresholds={kpiThresholds}
                   onThresholdChange={(col, t) => setKpiThresholds(prev => ({ ...prev, [col]: t }))} />
               )}
-
-              {/* Tabla */}
-              <div className="sheet-wrap">
-                <div className="sheet-bar">
-                  <button className="table-collapse-btn" onClick={() => setTableCollapsed(v => !v)}
-                    title={tableCollapsed ? 'Mostrar tabla' : 'Ocultar tabla'}>
-                    {tableCollapsed ? '▸' : '▾'}
-                  </button>
-                  <span className="sheet-info">
-                    {isFiltered
-                      ? <><span className="row-count filtered">{filteredRows.length}</span> de {rows.length} filas</>
-                      : <>{rows.length} filas · {columns.length} columnas</>
-                    }
-                    {!tableCollapsed && <span className="sheet-hint">Doble clic en un encabezado o celda para editar</span>}
-                  </span>
-                  {tableMsg && <span className="table-msg-inline">{tableMsg}</span>}
-                  {isFiltered && (
-                    <div className="filter-badge">
-                      <span>{clickFilter ? `${clickFilter.col}: ${clickFilter.values.join(', ')}` : 'Filtros activos'}</span>
-                      <button onClick={clearAllFilters}>✕</button>
-                    </div>
-                  )}
-                </div>
-                {!tableCollapsed && <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        {columns.map(c => (
-                          <th key={c} onDoubleClick={() => startEditHeader(c)}>
-                            {editingHeader === c ? (
-                              <input autoFocus className="cell-edit-input" value={headerDraft}
-                                onChange={e => setHeaderDraft(e.target.value)}
-                                onClick={e => e.stopPropagation()}
-                                onBlur={() => commitHeaderEdit(c)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') commitHeaderEdit(c)
-                                  if (e.key === 'Escape') setEditingHeader(null)
-                                }} />
-                            ) : c}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRows.slice(0, 500).map((row, i) => (
-                        <tr key={i}>
-                          {columns.map(c => (
-                            <td key={c} onDoubleClick={() => startEditCell(row, c)}>
-                              {editingCell?.row === row && editingCell.col === c ? (
-                                <input autoFocus className="cell-edit-input" value={cellDraft}
-                                  onChange={e => setCellDraft(e.target.value)}
-                                  onClick={e => e.stopPropagation()}
-                                  onBlur={commitCellEdit}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') commitCellEdit()
-                                    if (e.key === 'Escape') setEditingCell(null)
-                                  }} />
-                              ) : String(row[c] ?? '')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredRows.length === 0 && <p className="table-more">Sin resultados</p>}
-                  {filteredRows.length > 500 && <p className="table-more">Mostrando 500 de {filteredRows.length}</p>}
-                </div>}
-              </div>
             </div>
           )}
         </main>
@@ -1092,17 +980,88 @@ export default function App() {
             onClearClick={() => setClickFilter(null)}
           />
         )}
-
-        {/* Panel de gráficos anclados (fotos congeladas) */}
-        {showPinned && (
-          <PinnedPanel pinned={livePinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} onGoToSource={goToPinnedSource} />
-        )}
       </div>
 
       {/* ── Tab Bar ── */}
       <TabBar pages={pages} activePage={activePage}
         onSelect={setActivePage} onAdd={addPage}
         onRemove={removePage} onRename={renamePage} />
+
+      {/* ── Ventana flotante de la tabla de datos ── */}
+      {rows.length > 0 && showTable && (
+        <LightPanel title="Datos" icon="📋"
+          onClose={() => setShowTable(false)}
+          initialPos={panelPos['data-table']}
+          initialSize={{ w: 900, h: 420 }}
+          onDragEnd={p => setPanelPos(prev => ({ ...prev, 'data-table': p }))}
+          zIndex={getZIndex('data-table')}
+          onFocus={() => bringToFront('data-table')}>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="sheet-wrap">
+              <div className="sheet-bar">
+                <span className="sheet-info">
+                  {isFiltered
+                    ? <><span className="row-count filtered">{filteredRows.length}</span> de {rows.length} filas</>
+                    : <>{rows.length} filas · {columns.length} columnas</>
+                  }
+                  <span className="sheet-hint">Doble clic en un encabezado o celda para editar</span>
+                </span>
+                {tableMsg && <span className="table-msg-inline">{tableMsg}</span>}
+                {isFiltered && (
+                  <div className="filter-badge">
+                    <span>{clickFilter ? `${clickFilter.col}: ${clickFilter.values.join(', ')}` : 'Filtros activos'}</span>
+                    <button onClick={clearAllFilters}>✕</button>
+                  </div>
+                )}
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      {columns.map(c => (
+                        <th key={c} onDoubleClick={() => startEditHeader(c)}>
+                          {editingHeader === c ? (
+                            <input autoFocus className="cell-edit-input" value={headerDraft}
+                              onChange={e => setHeaderDraft(e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              onBlur={() => commitHeaderEdit(c)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') commitHeaderEdit(c)
+                                if (e.key === 'Escape') setEditingHeader(null)
+                              }} />
+                          ) : c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.slice(0, 500).map((row, i) => (
+                      <tr key={i}>
+                        {columns.map(c => (
+                          <td key={c} onDoubleClick={() => startEditCell(row, c)}>
+                            {editingCell?.row === row && editingCell.col === c ? (
+                              <input autoFocus className="cell-edit-input" value={cellDraft}
+                                onChange={e => setCellDraft(e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                onBlur={commitCellEdit}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') commitCellEdit()
+                                  if (e.key === 'Escape') setEditingCell(null)
+                                }} />
+                            ) : String(row[c] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filteredRows.length === 0 && <p className="table-more">Sin resultados</p>}
+                {filteredRows.length > 500 && <p className="table-more">Mostrando 500 de {filteredRows.length}</p>}
+              </div>
+            </div>
+          </div>
+        </LightPanel>
+      )}
 
       {/* ── Paneles ligeros flotantes ── */}
       {pg.charts.map(instanceId => {
@@ -1114,7 +1073,8 @@ export default function App() {
             onClose={() => removeChart(instanceId)}
             onExpand={() => setExpanded(instanceId)}
             onConfig={() => setConfigOpen(instanceId)}
-            onPin={() => pinChart(instanceId)}
+            onPin={() => toggleAnchor(instanceId)}
+            anchored={!!anchoredCharts[instanceId]}
             initialPos={panelPos[instanceId]}
             onDragEnd={p => setPanelPos(prev => ({ ...prev, [instanceId]: p }))}
             zIndex={getZIndex(instanceId)}
@@ -1189,7 +1149,9 @@ export default function App() {
               <div className="card-actions">
                 <button className="action-btn" onClick={() => downloadChart(expanded)}>↓ PNG</button>
                 <button className="action-btn" onClick={() => exportChartData(expanded)}>↓ Datos</button>
-                <button className="action-btn" onClick={() => pinChart(expanded)}>📌 Anclar</button>
+                <button className="action-btn" onClick={() => toggleAnchor(expanded)}>
+                  {anchoredCharts[expanded] ? '📌 Desanclar' : '📌 Anclar'}
+                </button>
                 <button className="action-btn" onClick={() => shareChart(expanded)}>🔗 Compartir</button>
                 <button className="action-btn close" onClick={() => setExpanded(null)}>✕</button>
               </div>

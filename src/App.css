@@ -159,8 +159,6 @@ body { background: var(--bg); min-height: 100vh; }
 .sheet-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--surface); }
 .sheet-bar  { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; background: var(--surf2); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 10px; }
 .sheet-info { font-size: 12px; color: var(--muted); flex: 1; }
-.table-collapse-btn { background: transparent; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 2px 4px; line-height: 1; }
-.table-collapse-btn:hover { color: var(--text); }
 
 /* ── Dropzone ── */
 .dropzone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; border: 2px dashed var(--border); border-radius: 8px; min-height: 400px; cursor: pointer; text-align: center; padding: 40px; user-select: none; background: var(--surface); }
@@ -231,15 +229,6 @@ tbody td { padding: 6px 13px; color: var(--text); white-space: nowrap; max-width
 .fp-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text); cursor: pointer; }
 .fp-check input { accent-color: var(--accent); cursor: pointer; }
 .fp-more { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
-/* ── Panel de gráficos anclados ── */
-.pinned-panel { width: 320px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
-.pinned-list { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
-.pinned-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); cursor: pointer; transition: border-color 0.15s; }
-.pinned-card:hover { border-color: var(--accent); }
-.pinned-card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; }
-.pinned-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pinned-card-chart { height: 200px; padding: 8px; }
 .fp-empty { padding: 16px 14px; font-size: 12px; color: var(--muted); }
 
 /* ── Tab Bar ── */

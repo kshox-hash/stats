@@ -16,6 +16,22 @@
   box-shadow: 0 2px 10px rgba(0,0,0,.12);
 }
 
+/* Anclado: filtro congelado, no reacciona a los filtros globales nuevos */
+.lp-anchored {
+  border-color: #E04837;
+  border-width: 2px;
+}
+.lp-anchored:hover {
+  border-color: #E04837;
+}
+.lp-anchored-badge {
+  color: #E04837;
+  font-size: 11px;
+}
+.lp-pin-active {
+  color: #E04837 !important;
+}
+
 /* Ghost — contorno durante resize */
 .lp-ghost {
   display: none;
