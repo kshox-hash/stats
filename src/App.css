@@ -42,24 +42,27 @@ body { background: var(--bg); min-height: 100vh; }
 /* ── Body ── */
 .body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
-/* ── Viz Sidebar ── */
+/* ── Viz Sidebar (compacta, como el panel de Visualizaciones de Power BI) ── */
 .viz-sidebar {
-  width: 128px; flex-shrink: 0;
+  width: 84px; flex-shrink: 0;
   background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px;
+  display: flex; flex-direction: column; padding: 10px 6px 10px; gap: 2px;
   overflow-y: auto;
 }
-.viz-group { margin-bottom: 10px; }
-.viz-group-label { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; color: var(--muted); padding: 0 2px; margin-bottom: 5px; text-transform: uppercase; }
-.viz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.viz-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 2px 6px; background: var(--surf2); border: 1px solid var(--border); border-radius: 5px; cursor: pointer; color: var(--muted); }
+.viz-group { margin-bottom: 8px; }
+.viz-group-label { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; color: var(--muted); padding: 0 2px; margin-bottom: 4px; text-transform: uppercase; }
+.viz-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.viz-btn { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: var(--surf2); border: 1px solid var(--border); border-radius: 5px; cursor: pointer; color: var(--muted); }
 .viz-btn:hover:not(.locked) { border-color: #b0b0d0; background: #eeeef8; color: var(--text); }
 .viz-btn.active { background: rgba(0,120,212,0.08); border-color: rgba(0,120,212,0.5); color: var(--accent); }
 .viz-btn.locked { opacity: 0.28; cursor: not-allowed; }
-.viz-icon { display: flex; align-items: center; justify-content: center; }
-.viz-name { font-size: 9.5px; font-weight: 500; white-space: nowrap; }
-.viz-count { font-size: 8.5px; opacity: 0.7; margin-left: 2px; }
-.viz-change { margin-top: auto; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; padding: 7px 4px; cursor: pointer; width: 100%; }
+.viz-count-badge {
+  position: absolute; top: -4px; right: -4px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 8.5px; font-weight: 600; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.viz-change { margin-top: auto; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 10px; padding: 6px 2px; cursor: pointer; width: 100%; }
 .viz-change:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ── Content ── */

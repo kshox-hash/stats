@@ -930,8 +930,8 @@ export default function App() {
                       className={`viz-btn ${count > 0 ? 'active' : ''} ${!rows.length ? 'locked' : ''}`}
                       onClick={() => rows.length && addChart(id)}
                       title={`Agregar ${CHART_META[id]}`}>
-                      <span className="viz-icon"><ChartIcon type={id} active={count > 0} size={20} /></span>
-                      <span className="viz-name">{CHART_META[id]}{count > 1 && <span className="viz-count">×{count}</span>}</span>
+                      <ChartIcon type={id} active={count > 0} size={18} />
+                      {count > 1 && <span className="viz-count-badge">{count}</span>}
                     </button>
                   )
                 })}
