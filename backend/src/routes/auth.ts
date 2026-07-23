@@ -33,14 +33,30 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.passwordHash)
   if (!valid) return res.status(401).json({ error: 'Credenciales incorrectas' })
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  )
+  try {
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+    res.cookie('token', token, COOKIE_OPTS)
+    res.json({ id: user.id, email: user.email, name: user.name })
+  } catch (err) {
+    // Si JWT_SECRET falta o es inválido, jwt.sign explota -- esto evita el 500 genérico
+    // y muestra la causa real en vez de una página de error sin información.
+    res.status(500).json({ error: `Error al firmar el token: ${(err as Error).message}` })
+  }
+})
 
-  res.cookie('token', token, COOKIE_OPTS)
-  res.json({ id: user.id, email: user.email, name: user.name })
+// GET /api/auth/debug-env — temporal, solo para diagnosticar variables de entorno en Render.
+// No expone el valor del secreto, solo si está seteado y su largo.
+router.get('/debug-env', (_req, res) => {
+  res.json({
+    jwtSecretSet: !!process.env.JWT_SECRET,
+    jwtSecretLength: (process.env.JWT_SECRET || '').length,
+    nodeEnv: process.env.NODE_ENV || null,
+    frontendUrl: process.env.FRONTEND_URL || null,
+  })
 })
 
 // POST /api/auth/logout
