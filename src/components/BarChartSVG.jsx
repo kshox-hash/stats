@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { formatValue, fitLabelFontSize } from '../format'
 import { niceLinearTicks, niceLogTicks, makeYScale } from '../scale'
 
-const ML = 52, MR = 12, MT = 10, MB = 54
+const ML = 52, MR = 12, MT = 26, MB = 54
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
 
 export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, showLegend = true, format, scale, clickFilter, onBarClick }) {
@@ -29,9 +29,15 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
 
   const nS = numericCols.length
   const nG = data.length
-  const barW    = nS === 1 ? 34 : 16
-  const barGap  = 2
-  const groupW  = nS * barW + (nS - 1) * barGap + 14
+  // Ancho de barra adaptable al espacio real disponible, en vez de un valor fijo
+  // chico que dejaba el gráfico con mucho aire cuando hay pocas categorías.
+  const availPerGroup = Math.max(40, (wrapSize.w - ML - MR) / Math.max(nG, 1))
+  const barGap  = nS === 1 ? 4 : 3
+  const rawBarW = nS === 1
+    ? availPerGroup * 0.55
+    : (availPerGroup * 0.85 - (nS - 1) * barGap) / nS
+  const barW    = Math.max(nS === 1 ? 24 : 10, Math.min(nS === 1 ? 200 : 100, rawBarW))
+  const groupW  = Math.max(nS * barW + (nS - 1) * barGap + 16, availPerGroup)
   const svgH    = Math.max(wrapSize.h, 120)
   const svgW    = Math.max(nG * groupW + ML + MR, wrapSize.w)
   const cW      = svgW - ML - MR
