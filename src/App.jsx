@@ -580,6 +580,7 @@ export default function App() {
     const trendLine         = !!cfg.trendLine
     const showLegend        = cfg.showLegend !== false
     const format            = cfg.format || 'auto'
+    const scale              = cfg.scale === 'log' ? 'log' : 'linear'
     const chartAgg          = cfg.agg || 'sum'
     const defaultSort       = ['pie', 'funnel', 'treemap'].includes(chartType) ? 'value_desc' : 'none'
     const sortBy            = cfg.sort || defaultSort
@@ -598,7 +599,7 @@ export default function App() {
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <BarChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels} showLegend={showLegend} format={format}
+                palette={palette} showLabels={showLabels} showLegend={showLegend} format={format} scale={scale}
                 clickFilter={clickFilter} onBarClick={onClick} />
             </div>
           </div>
@@ -628,7 +629,7 @@ export default function App() {
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <LineChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format}
+                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
                 clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>
@@ -642,7 +643,7 @@ export default function App() {
             {aggNote(chartRows.length, agg)}
             <div style={{ flex: 1, minHeight: 0 }}>
               <AreaChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
-                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format}
+                palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
                 clickFilter={clickFilter} onPointClick={onClick} />
             </div>
           </div>

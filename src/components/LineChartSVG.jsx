@@ -1,22 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatValue } from '../format'
+import { niceLinearTicks, niceLogTicks, makeYScale } from '../scale'
 
 const ML = 52, MR = 16, MT = 10, MB = 46
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
 const DASHES  = ['none', '6 3', '3 3', '8 3 3 3', '2 2']
-
-function niceTicks(max, count = 5) {
-  if (max <= 0) return [0, 1]
-  const raw  = max / (count - 1)
-  const mag  = Math.pow(10, Math.floor(Math.log10(raw)))
-  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw) ?? mag * 10
-  const ticks = []
-  for (let v = 0; v <= max * 1.05; v += step) {
-    ticks.push(parseFloat(v.toPrecision(10)))
-    if (ticks.length > count + 1) break
-  }
-  return ticks
-}
 
 function smoothPath(pts, t = 0.35) {
   if (!pts.length) return ''
@@ -41,7 +29,7 @@ function linearRegression(vals) {
   return { m, b }
 }
 
-export default function LineChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, showLegend = true, format, clickFilter, onPointClick }) {
+export default function LineChartSVG({ data, labelCol, numericCols, palette, showLabels, trendLine, showLegend = true, format, scale, clickFilter, onPointClick }) {
   const colors = palette && palette.length ? palette : PALETTE
   const fmtV = v => formatValue(v, format)
   const wrapRef  = useRef(null)
@@ -73,12 +61,14 @@ export default function LineChartSVG({ data, labelCol, numericCols, palette, sho
   const visData = xZoom ? data.slice(xZoom.from, xZoom.to + 1) : data
   const n = visData.length
 
-  const maxVal = Math.max(...visData.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
-  const ticks  = niceTicks(maxVal)
-  const yMax   = ticks[ticks.length - 1]
+  const maxVal    = Math.max(...visData.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
+  const isLog     = scale === 'log'
+  const ticks     = isLog ? niceLogTicks(maxVal) : niceLinearTicks(maxVal)
+  const yMax      = isLog ? maxVal : ticks[ticks.length - 1]
+  const normalize = makeYScale(yMax, scale)
 
   const xPx     = i  => n < 2 ? cW / 2 : (i / (n - 1)) * cW
-  const yPx     = v  => cH - Math.max(0, Math.min(1, v / yMax)) * cH
+  const yPx     = v  => cH - normalize(v) * cH
   const pxToIdx = px => Math.max(0, Math.min(n - 1, Math.round((px / cW) * Math.max(1, n - 1))))
   const selIdxs = clickFilter
     ? visData.reduce((acc, r, i) => (clickFilter.values.includes(String(r[labelCol])) ? [...acc, i] : acc), [])

@@ -1,23 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatValue } from '../format'
+import { niceLinearTicks, niceLogTicks, makeYScale } from '../scale'
 
 const ML = 52, MR = 12, MT = 10, MB = 54
 const PALETTE = ['#0078D4','#F2C811','#47A85C','#E04837','#9B59B6','#1ABC9C','#E67E22','#3498DB','#E91E63','#00BCD4']
 
-function niceTicks(max, count = 5) {
-  if (max <= 0) return [0, 1]
-  const raw = max / (count - 1)
-  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
-  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw) ?? mag * 10
-  const ticks = []
-  for (let v = 0; v <= max * 1.05; v += step) {
-    ticks.push(parseFloat(v.toPrecision(10)))
-    if (ticks.length > count + 1) break
-  }
-  return ticks
-}
-
-export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, showLegend = true, format, clickFilter, onBarClick }) {
+export default function BarChartSVG({ data, labelCol, numericCols, palette, showLabels, showLegend = true, format, scale, clickFilter, onBarClick }) {
   const colors = palette && palette.length ? palette : PALETTE
   const fmtV = v => formatValue(v, format)
   const outerRef  = useRef(null)
@@ -49,11 +37,13 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
   const cW      = svgW - ML - MR
   const cH      = svgH - MT - MB
 
-  const maxVal = Math.max(...data.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
-  const ticks  = niceTicks(maxVal)
-  const yMax   = ticks[ticks.length - 1]
+  const maxVal   = Math.max(...data.flatMap(r => numericCols.map(c => Number(r[c]) || 0)), 0.001)
+  const isLog    = scale === 'log'
+  const ticks    = isLog ? niceLogTicks(maxVal) : niceLinearTicks(maxVal)
+  const yMax     = isLog ? maxVal : ticks[ticks.length - 1]
+  const normalize = makeYScale(yMax, scale)
 
-  const yPx    = v => cH - Math.max(0, Math.min(1, v / yMax)) * cH
+  const yPx    = v => cH - normalize(v) * cH
   const cellOp = row => !clickFilter ? 1 : clickFilter.values.includes(String(row[labelCol])) ? 1 : 0.15
 
   const getTip = (e, extra) => {
@@ -89,7 +79,7 @@ export default function BarChartSVG({ data, labelCol, numericCols, palette, show
                   onMouseLeave={() => setTooltip(null)}>
                   {numericCols.map((col, si) => {
                     const v     = Math.max(0, Number(row[col]) || 0)
-                    const bh    = Math.max(1, (v / yMax) * cH)
+                    const bh    = Math.max(1, normalize(v) * cH)
                     const bx    = gStartX + si * (barW + barGap)
                     const color = nS === 1 ? colors[gi % colors.length] : colors[si % colors.length]
                     return (

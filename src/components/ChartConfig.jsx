@@ -11,6 +11,8 @@ const LABEL_CHARTS  = ['bar', 'line', 'area', 'waterfall']
 const AGG_CHARTS    = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
 const SORT_CHARTS   = ['bar', 'waterfall', 'line', 'area', 'pie', 'funnel', 'treemap']
 const LEGEND_CHARTS = ['bar', 'line', 'area', 'pie']
+// Cascada queda afuera: puede tener valores negativos y el logaritmo de un negativo no existe
+const SCALE_CHARTS  = ['bar', 'line', 'area']
 
 const AGGS = [
   { value: 'sum',   label: 'Suma' },
@@ -96,6 +98,17 @@ export default function ChartConfig({ chartId, config, columns, numericCols, onC
             onChange={e => onChange({ sort: e.target.value })}>
             {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
+        </div>
+      )}
+
+      {/* Escala del eje Y */}
+      {SCALE_CHARTS.includes(chartId) && (
+        <div className="cc-row cc-toggle">
+          <label className="cc-label" title="Comprime los valores grandes para que un outlier extremo no aplaste al resto contra el cero">
+            Escala logarítmica
+          </label>
+          <input type="checkbox" checked={config.scale === 'log'}
+            onChange={e => onChange({ scale: e.target.checked ? 'log' : 'linear' })} />
         </div>
       )}
 
