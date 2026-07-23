@@ -193,6 +193,13 @@ function sortAggRows(rows, labelCol, valueCol, sortBy) {
   return arr
 }
 
+// Renombra una clave dentro de un objeto plano (filtros/KPIs por columna), preservando el resto
+function renameKey(obj, oldKey, newKey) {
+  if (!(oldKey in obj)) return obj
+  const { [oldKey]: val, ...rest } = obj
+  return { ...rest, [newKey]: val }
+}
+
 // ── Estado inicial de página ─────────────────────────────────────────────────
 const freshPage = () => ({ charts: [], chartTypes: {}, chartConfigs: {} })
 
@@ -210,6 +217,13 @@ export default function App() {
   const [dragging, setDragging] = useState(false)
   const [pendingReview, setPendingReview]   = useState(null) // { rows, columns, autoNamed } — revisión de columnas sin título
   const [pendingSheets, setPendingSheets]   = useState(null) // { wb } — elegir pestaña cuando el archivo tiene más de una
+
+  // Edición de la tabla (doble clic en encabezado o celda)
+  const [editingHeader, setEditingHeader] = useState(null) // nombre de columna que se está renombrando
+  const [headerDraft, setHeaderDraft]     = useState('')
+  const [editingCell, setEditingCell]     = useState(null) // { row, col } — row es la referencia real dentro de `rows`
+  const [cellDraft, setCellDraft]         = useState('')
+  const [tableMsg, setTableMsg]           = useState('')
 
   // Páginas
   const [pages, setPages]           = useState([{ id: 'p1', name: 'Página 1' }])
@@ -292,6 +306,62 @@ export default function App() {
   }, [chartRows, clickFilter])
 
   const isFiltered = filteredRows.length < rows.length
+
+  // ── Edición de la tabla (encabezados y celdas) ──────────────────────────────
+  const showTableMsg = (msg) => { setTableMsg(msg); setTimeout(() => setTableMsg(''), 3000) }
+
+  const renameColumn = (oldName, newName) => {
+    setRows(prev => prev.map(row => {
+      const obj = {}
+      for (const [k, v] of Object.entries(row)) obj[k === oldName ? newName : k] = v
+      return obj
+    }))
+    setSlicerFilters(prev => renameKey(prev, oldName, newName))
+    setRangeFilters(prev => renameKey(prev, oldName, newName))
+    setDateFilters(prev => renameKey(prev, oldName, newName))
+    setKpiAgg(prev => renameKey(prev, oldName, newName))
+    setKpiThresholds(prev => renameKey(prev, oldName, newName))
+    setClickFilter(prev => (prev && prev.col === oldName) ? { ...prev, col: newName } : prev)
+    setPageData(prev => {
+      const next = {}
+      for (const [pid, page] of Object.entries(prev)) {
+        const chartConfigs = {}
+        for (const [cid, cfg] of Object.entries(page.chartConfigs || {})) {
+          const newCfg = { ...cfg }
+          if (newCfg.xCol === oldName) newCfg.xCol = newName
+          if (Array.isArray(newCfg.yCols)) newCfg.yCols = newCfg.yCols.map(c => c === oldName ? newName : c)
+          chartConfigs[cid] = newCfg
+        }
+        next[pid] = { ...page, chartConfigs }
+      }
+      return next
+    })
+  }
+
+  const startEditHeader = (col) => { setEditingHeader(col); setHeaderDraft(col) }
+
+  const commitHeaderEdit = (oldName) => {
+    const newName = headerDraft.trim()
+    setEditingHeader(null)
+    if (!newName || newName === oldName) return
+    if (columns.includes(newName)) { showTableMsg(`Ya existe una columna llamada "${newName}".`); return }
+    renameColumn(oldName, newName)
+  }
+
+  const startEditCell = (row, col) => { setEditingCell({ row, col }); setCellDraft(String(row[col] ?? '')) }
+
+  const commitCellEdit = () => {
+    if (!editingCell) return
+    const { row, col } = editingCell
+    const idx = rows.indexOf(row)
+    setEditingCell(null)
+    if (idx === -1) return
+    setRows(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [col]: cellDraft }
+      return next
+    })
+  }
 
   // ── Acciones de datos ──────────────────────────────────────────────────────
   const applyLoadedRows = (data) => {
@@ -806,7 +876,9 @@ export default function App() {
                       ? <><span className="row-count filtered">{filteredRows.length}</span> de {rows.length} filas</>
                       : <>{rows.length} filas · {columns.length} columnas</>
                     }
+                    <span className="sheet-hint">Doble clic en un encabezado o celda para editar</span>
                   </span>
+                  {tableMsg && <span className="table-msg-inline">{tableMsg}</span>}
                   {isFiltered && (
                     <div className="filter-badge">
                       <span>{clickFilter ? `${clickFilter.col}: ${clickFilter.values.join(', ')}` : 'Filtros activos'}</span>
@@ -816,10 +888,42 @@ export default function App() {
                 </div>
                 <div className="table-wrap">
                   <table>
-                    <thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
+                    <thead>
+                      <tr>
+                        {columns.map(c => (
+                          <th key={c} onDoubleClick={() => startEditHeader(c)}>
+                            {editingHeader === c ? (
+                              <input autoFocus className="cell-edit-input" value={headerDraft}
+                                onChange={e => setHeaderDraft(e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                onBlur={() => commitHeaderEdit(c)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') commitHeaderEdit(c)
+                                  if (e.key === 'Escape') setEditingHeader(null)
+                                }} />
+                            ) : c}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
                     <tbody>
                       {filteredRows.slice(0, 500).map((row, i) => (
-                        <tr key={i}>{columns.map(c => <td key={c}>{row[c]}</td>)}</tr>
+                        <tr key={i}>
+                          {columns.map(c => (
+                            <td key={c} onDoubleClick={() => startEditCell(row, c)}>
+                              {editingCell?.row === row && editingCell.col === c ? (
+                                <input autoFocus className="cell-edit-input" value={cellDraft}
+                                  onChange={e => setCellDraft(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  onBlur={commitCellEdit}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') commitCellEdit()
+                                    if (e.key === 'Escape') setEditingCell(null)
+                                  }} />
+                              ) : String(row[c] ?? '')}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
                     </tbody>
                   </table>
