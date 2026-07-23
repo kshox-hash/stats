@@ -279,10 +279,17 @@ export default function App() {
   }
 
   // Filtros
-  const [clickFilter, setClickFilter]     = useState(null)  // { col, value }
+  const [clickFilter, setClickFilter]     = useState(null)  // { col, value, sourceId }
   const [slicerFilters, setSlicerFilters] = useState({})    // { col: string[] }
   const [rangeFilters, setRangeFilters]   = useState({})    // { col: { min, max } }
   const [dateFilters, setDateFilters]     = useState({})    // { col: { from, to } }
+
+  // Interacciones entre gráficos (como "Editar interacciones" de Power BI):
+  // interactions[sourceId][targetId] = 'filter' | 'highlight' | 'none' — cómo reacciona
+  // targetId cuando se hace click en un valor de sourceId. Por defecto: 'highlight'.
+  const [interactions, setInteractions] = useState({})
+  const [editInteractions, setEditInteractions] = useState(false)
+  const [interactionSource, setInteractionSource] = useState(null)
 
   // KPI
   const [kpiAgg, setKpiAgg]               = useState({})   // { col: 'sum'|'avg'|'max'|'min'|'count' }
@@ -539,18 +546,18 @@ export default function App() {
   // ── Filtros ────────────────────────────────────────────────────────────────
   // additive = true (ctrl/cmd+click) suma o saca ese valor de la selección actual;
   // sin additive, un click selecciona solo ese valor (o lo deselecciona si ya era el único elegido)
-  const applyFilter = (col, value, additive) => {
+  const applyFilter = (col, value, additive, sourceId) => {
     const strVal = String(value)
     setClickFilter(prev => {
       if (prev?.col === col) {
         if (additive) {
           const has = prev.values.includes(strVal)
           const next = has ? prev.values.filter(v => v !== strVal) : [...prev.values, strVal]
-          return next.length ? { col, values: next } : null
+          return next.length ? { col, values: next, sourceId } : null
         }
         if (prev.values.length === 1 && prev.values[0] === strVal) return null
       }
-      return { col, values: [strVal] }
+      return { col, values: [strVal], sourceId }
     })
   }
 
@@ -630,11 +637,24 @@ export default function App() {
     const chartAgg          = cfg.agg || 'sum'
     const defaultSort       = ['pie', 'funnel', 'treemap'].includes(chartType) ? 'value_desc' : 'none'
     const sortBy            = cfg.sort || defaultSort
-    const onClick           = (value, additive) => applyFilter(chartLabelCol, value, additive)
+    const onClick           = (value, additive) => applyFilter(chartLabelCol, value, additive, instanceId)
 
     // Si está anclado, usa el filtro congelado de cuando se ancló en vez de los filtros
     // globales actuales — el resto (clicks, tooltips, cross-filter) sigue funcionando normal.
-    const rowsForChart = anchoredCharts[instanceId] ? applyFrozenFilters(rows, anchoredCharts[instanceId]) : chartRows
+    let rowsForChart = anchoredCharts[instanceId] ? applyFrozenFilters(rows, anchoredCharts[instanceId]) : chartRows
+
+    // Interacciones entre gráficos (como "Editar interacciones" de Power BI): cómo reacciona
+    // ESTE gráfico cuando el click vino de OTRO gráfico. Default: 'highlight' (resalta, no filtra).
+    let effectiveClickFilter = clickFilter
+    if (clickFilter?.sourceId && clickFilter.sourceId !== instanceId) {
+      const mode = interactions[clickFilter.sourceId]?.[instanceId] ?? 'highlight'
+      if (mode === 'filter') {
+        rowsForChart = rowsForChart.filter(row => clickFilter.values.includes(String(row[clickFilter.col])))
+        effectiveClickFilter = null
+      } else if (mode === 'none') {
+        effectiveClickFilter = null
+      }
+    }
 
     const aggNote = (original, agg) => original > agg.length
       ? <span className="agg-note">Agrupado por {chartLabelCol} · {agg.length} categorías de {original} filas</span>
@@ -650,7 +670,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <BarChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} showLegend={showLegend} format={format} scale={scale}
-                clickFilter={clickFilter} onBarClick={onClick} />
+                clickFilter={effectiveClickFilter} onBarClick={onClick} />
             </div>
           </div>
         )
@@ -666,7 +686,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <WaterfallChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} showLabels={showLabels} format={format}
-                clickFilter={clickFilter} onBarClick={onClick} />
+                clickFilter={effectiveClickFilter} onBarClick={onClick} />
             </div>
           </div>
         )
@@ -680,7 +700,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <LineChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
-                clickFilter={clickFilter} onPointClick={onClick} />
+                clickFilter={effectiveClickFilter} onPointClick={onClick} />
             </div>
           </div>
         )
@@ -694,7 +714,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <AreaChartSVG data={agg} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} showLabels={showLabels} trendLine={trendLine} showLegend={showLegend} format={format} scale={scale}
-                clickFilter={clickFilter} onPointClick={onClick} />
+                clickFilter={effectiveClickFilter} onPointClick={onClick} />
             </div>
           </div>
         )
@@ -710,7 +730,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <PieChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} showLegend={showLegend} format={format}
-                clickFilter={clickFilter} onSliceClick={onClick} />
+                clickFilter={effectiveClickFilter} onSliceClick={onClick} />
             </div>
           </div>
         )
@@ -726,7 +746,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <FunnelChartSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} format={format}
-                clickFilter={clickFilter} onSliceClick={onClick} />
+                clickFilter={effectiveClickFilter} onSliceClick={onClick} />
             </div>
           </div>
         )
@@ -742,7 +762,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <TreemapSVG data={agg} labelCol={chartLabelCol} valueCol={col}
                 palette={palette} format={format}
-                clickFilter={clickFilter} onCellClick={onClick} />
+                clickFilter={effectiveClickFilter} onCellClick={onClick} />
             </div>
           </div>
         )
@@ -760,7 +780,7 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
               <ScatterChartSVG data={scatterData} labelCol={chartLabelCol} numericCols={chartNumericCols}
                 palette={palette} trendLine={trendLine} format={format}
-                clickFilter={clickFilter} onPointClick={onClick} />
+                clickFilter={effectiveClickFilter} onPointClick={onClick} />
             </div>
           </div>
         )
@@ -903,6 +923,11 @@ export default function App() {
               <button className="hbtn" onClick={exportPDF}   title="Exportar dashboard a PDF">↓ PDF</button>
               <button className={`hbtn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(v => !v)}>
                 Filtros {totalFilters > 0 && <span className="filter-count">{totalFilters}</span>}
+              </button>
+              <button className={`hbtn ${editInteractions ? 'active' : ''}`}
+                onClick={() => { setEditInteractions(v => !v); setInteractionSource(null) }}
+                title="Elegir cómo reacciona cada gráfico al click de otro">
+                🔗 Interacciones
               </button>
             </>
           )}
@@ -1083,6 +1108,20 @@ export default function App() {
       {pg.charts.map(instanceId => {
         const chartType = pg.chartTypes?.[instanceId]
         const title = pg.chartConfigs?.[instanceId]?.title || CHART_META[chartType]
+        const showInteractionPicker = editInteractions && interactionSource && interactionSource !== instanceId
+        const badge = showInteractionPicker ? (
+          <div className="lp-interaction-picker" onMouseDown={e => e.stopPropagation()}>
+            {[['filter', '▼', 'Filtrar'], ['highlight', '◐', 'Resaltar'], ['none', '⊘', 'Ninguna']].map(([mode, icon, label]) => (
+              <button key={mode} title={label}
+                className={(interactions[interactionSource]?.[instanceId] ?? 'highlight') === mode ? 'active' : ''}
+                onClick={() => setInteractions(prev => ({
+                  ...prev, [interactionSource]: { ...(prev[interactionSource] || {}), [instanceId]: mode },
+                }))}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        ) : null
         return (
           <LightPanel key={instanceId} title={title}
             icon={<ChartIcon type={chartType} active size={14} />}
@@ -1091,13 +1130,15 @@ export default function App() {
             onConfig={() => setConfigOpen(instanceId)}
             onPin={() => toggleAnchor(instanceId)}
             anchored={!!anchoredCharts[instanceId]}
+            selected={editInteractions && interactionSource === instanceId}
+            badge={badge}
             initialPos={panelPos[instanceId]}
             initialSize={panelSize[instanceId]}
             onDragEnd={p => setPanelPos(prev => ({ ...prev, [instanceId]: p }))}
             onResizeEnd={s => setPanelSize(prev => ({ ...prev, [instanceId]: s }))}
             siblings={siblingRectsFor(instanceId)}
             zIndex={getZIndex(instanceId)}
-            onFocus={() => bringToFront(instanceId)}>
+            onFocus={() => { bringToFront(instanceId); if (editInteractions) setInteractionSource(instanceId) }}>
             <div ref={el => chartRefs.current[instanceId] = el} style={{ height: '100%' }}>
               {buildChart(instanceId, false)}
             </div>
@@ -1121,6 +1162,7 @@ export default function App() {
               config={pg.chartConfigs?.[configOpen] || {}}
               columns={columns}
               numericCols={numericCols}
+              dateCols={dateCols}
               onChange={patch => updateChartConfig(configOpen, patch)}
             />
           </div>

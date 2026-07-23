@@ -37,13 +37,28 @@ const FORMATS = [
   { value: 'percent',  label: 'Porcentaje (%)' },
 ]
 
-export default function ChartConfig({ chartId, config, columns, numericCols, onChange }) {
+export default function ChartConfig({ chartId, config, columns, numericCols, dateCols = [], onChange }) {
   const yCols = config.yCols || numericCols
+  const xCol  = config.xCol || columns[0] || ''
   const defaultSort = ['pie', 'funnel', 'treemap'].includes(chartId) ? 'value_desc' : 'none'
 
-  const toggleYCol = (col) => {
-    const next = yCols.includes(col) ? yCols.filter(c => c !== col) : [...yCols, col]
-    onChange({ yCols: next.length ? next : [col] })
+  const removeYCol = (col) => {
+    const next = yCols.filter(c => c !== col)
+    onChange({ yCols: next.length ? next : numericCols.slice(0, 1) })
+  }
+
+  const fieldIcon = (col) => numericCols.includes(col) ? '#' : dateCols.includes(col) ? '📅' : 'Abc'
+
+  // ── Drag & drop de campos hacia los pozos (como el panel de Campos de Power BI) ──
+  const onDropX = (e) => {
+    e.preventDefault()
+    const col = e.dataTransfer.getData('text/plain')
+    if (col) onChange({ xCol: col })
+  }
+  const onDropY = (e) => {
+    e.preventDefault()
+    const col = e.dataTransfer.getData('text/plain')
+    if (col && numericCols.includes(col) && !yCols.includes(col)) onChange({ yCols: [...yCols, col] })
   }
 
   return (
@@ -55,26 +70,42 @@ export default function ChartConfig({ chartId, config, columns, numericCols, onC
           value={config.title || ''} onChange={e => onChange({ title: e.target.value })} />
       </div>
 
-      {/* Eje X */}
+      {/* Campos disponibles — arrastrar a los pozos de abajo */}
       <div className="cc-row">
-        <label className="cc-label">Eje X / Categoría</label>
-        <select className="cc-select" value={config.xCol || columns[0] || ''}
-          onChange={e => onChange({ xCol: e.target.value })}>
-          {columns.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <label className="cc-label">Campos</label>
+        <div className="cc-fields-list">
+          {columns.map(col => (
+            <div key={col} className="cc-field-chip" draggable
+              onDragStart={e => e.dataTransfer.setData('text/plain', col)}>
+              <span className="cc-field-icon">{fieldIcon(col)}</span>{col}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Series Y */}
+      {/* Pozo: Eje X / Categoría */}
+      <div className="cc-row">
+        <label className="cc-label">Eje X / Categoría</label>
+        <div className="cc-well" onDragOver={e => e.preventDefault()} onDrop={onDropX}>
+          {xCol
+            ? <span className="cc-well-chip">{fieldIcon(xCol)} {xCol}</span>
+            : <span className="cc-well-hint">Arrastrá un campo acá</span>}
+        </div>
+      </div>
+
+      {/* Pozo: Series (Eje Y) */}
       {numericCols.length > 0 && (
         <div className="cc-row">
-          <label className="cc-label">Series</label>
-          <div className="cc-checklist">
-            {numericCols.map(col => (
-              <label key={col} className="cc-check">
-                <input type="checkbox" checked={yCols.includes(col)} onChange={() => toggleYCol(col)} />
-                <span>{col}</span>
-              </label>
-            ))}
+          <label className="cc-label">Series (Eje Y)</label>
+          <div className="cc-well cc-well-multi" onDragOver={e => e.preventDefault()} onDrop={onDropY}>
+            {yCols.length
+              ? yCols.map(col => (
+                  <span key={col} className="cc-well-chip">
+                    # {col}
+                    <button onClick={() => removeYCol(col)} title="Quitar">✕</button>
+                  </span>
+                ))
+              : <span className="cc-well-hint">Arrastrá una columna numérica acá</span>}
           </div>
         </div>
       )}

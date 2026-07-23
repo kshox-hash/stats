@@ -20,7 +20,7 @@ function snapAxis(myStart, mySize, siblingStarts) {
   return null
 }
 
-export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, onPin, anchored, initialPos, initialSize, onDragEnd, onResizeEnd, siblings, zIndex, onFocus }) {
+export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, onPin, anchored, selected, badge, initialPos, initialSize, onDragEnd, onResizeEnd, siblings, zIndex, onFocus }) {
   const panelRef = useRef(null)
   const ghostRef = useRef(null)
   const pos      = useRef(initialPos ?? { x: 60 + Math.random() * 200, y: 56 + Math.random() * 100 })
@@ -105,7 +105,7 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, o
       <div ref={ghostRef} className="lp-ghost" />
       <div
         ref={panelRef}
-        className={`lp ${anchored ? 'lp-anchored' : ''}`}
+        className={`lp ${anchored ? 'lp-anchored' : ''} ${selected ? 'lp-selected' : ''}`}
         style={{ width: size.w, height: size.h, transform: `translate3d(${pos.current.x}px,${pos.current.y}px,0)`, zIndex: zIndex ?? 200 }}
         onMouseDown={onFocus}
       >
@@ -126,6 +126,9 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, o
             <button className="lp-close" onMouseDown={e => e.stopPropagation()} onClick={onClose} title="Cerrar">✕</button>
           </div>
         </div>
+
+        {/* Selector de interacción (Filtrar/Resaltar/Ninguna) — visible siempre, no solo al hover */}
+        {badge && <div className="lp-badge-row">{badge}</div>}
 
         {/* Contenido del gráfico — ocupa toda la altura */}
         <div className="lp-body" style={{ height: size.h }}>

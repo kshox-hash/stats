@@ -32,6 +32,43 @@
   color: #E04837 !important;
 }
 
+/* Seleccionado como origen al editar interacciones */
+.lp-selected {
+  border-color: #0078D4;
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(0,120,212,0.15);
+}
+
+/* Selector Filtrar/Resaltar/Ninguna — visible siempre (no solo al hover) mientras se editan interacciones */
+.lp-badge-row {
+  position: absolute;
+  top: 32px;
+  right: 6px;
+  z-index: 9;
+}
+.lp-interaction-picker {
+  display: flex;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #d4d4e6;
+  border-radius: 5px;
+  padding: 2px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.lp-interaction-picker button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.lp-interaction-picker button:hover { background: rgba(0,120,212,.08); color: #0078D4; }
+.lp-interaction-picker button.active { background: #0078D4; color: #fff; }
+
 /* Líneas guía de alineación — aparecen al arrastrar/redimensionar cerca de otro panel */
 .lp-guide {
   position: fixed;
