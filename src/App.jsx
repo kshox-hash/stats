@@ -196,6 +196,44 @@ function sortAggRows(rows, labelCol, valueCol, sortBy) {
   return arr
 }
 
+// Aplica un set de filtros (slicers/rango/fecha) guardado a un array de filas cualquiera —
+// se usa para recalcular en vivo los gráficos anclados con el filtro que tenían al anclarlos,
+// sin depender de los filtros que estén activos ahora mismo en el dashboard.
+function applyFrozenFilters(rows, filters) {
+  let r = rows
+  const { slicerFilters = {}, rangeFilters = {}, dateFilters = {} } = filters || {}
+  for (const [col, vals] of Object.entries(slicerFilters)) {
+    if (vals?.length) r = r.filter(row => vals.includes(String(row[col])))
+  }
+  for (const [col, range] of Object.entries(rangeFilters)) {
+    if (range) r = r.filter(row => {
+      const v = Number(row[col])
+      return (range.min == null || v >= range.min) && (range.max == null || v <= range.max)
+    })
+  }
+  for (const [col, range] of Object.entries(dateFilters)) {
+    if (range?.from || range?.to) r = r.filter(row => {
+      const d = new Date(row[col])
+      if (isNaN(d)) return true
+      if (range.from && d < new Date(range.from)) return false
+      if (range.to   && d > new Date(range.to + 'T23:59:59')) return false
+      return true
+    })
+  }
+  return r
+}
+
+// Misma lógica de agregación que usan los gráficos en vivo, factorizada para poder
+// recalcular un gráfico anclado con datos frescos (ver applyFrozenFilters arriba)
+function computeChartData(rows, chartType, labelCol, numericCols, agg, sortBy) {
+  if (chartType === 'scatter') return sampleRows(rows, 2000)
+  const limits = { bar: 60, waterfall: 60, line: 80, area: 80, pie: 12, funnel: 10, treemap: 30 }
+  if (!(chartType in limits)) return []
+  const cols = ['bar', 'line', 'area'].includes(chartType) ? numericCols : [numericCols[0]]
+  if (!cols[0]) return []
+  return sortAggRows(aggregateRows(rows, labelCol, cols, limits[chartType], agg), labelCol, cols[0], sortBy)
+}
+
 // Renombra una clave dentro de un objeto plano (filtros/KPIs por columna), preservando el resto
 function renameKey(obj, oldKey, newKey) {
   if (!(oldKey in obj)) return obj
@@ -769,21 +807,32 @@ export default function App() {
     XLSX.writeFile(wb, `grafico-${instanceId}.xlsx`)
   }
 
-  // ── Anclar un gráfico (foto congelada con el filtro actual, no reacciona a filtros nuevos) ──
-  // Igual que "Pin to dashboard" de Power BI: guarda también de dónde salió (página + filtros
-  // activos en ese momento) para poder volver a esa vista al hacer click en el anclado.
+  // ── Anclar un gráfico (filtro congelado, datos en vivo — como el pin de Power BI) ──
+  // Se guarda con qué filtros (slicers/rango/fecha) se ancló y de qué página/gráfico salió,
+  // pero NO una foto fija de los datos: esos se recalculan siempre desde `rows` actual, así
+  // que si editás una celda o cambian los datos, el anclado se actualiza solo.
   const pinChart = (instanceId) => {
-    const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data } = getChartSnapshot(instanceId)
-    if (!data.length) return
+    const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol } = getChartSnapshot(instanceId)
     const id = `pin-${pinCounter++}`
     const title = cfg.title || CHART_META[chartType]
     const source = {
       page: activePage, instanceId,
       clickFilter, slicerFilters, rangeFilters, dateFilters,
     }
-    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data, title, source }])
+    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, title, source }])
     setShowPinned(true)
   }
+
+  // Recalcula los datos de cada anclado con las filas actuales + el filtro que tenía al anclarse
+  const livePinnedCharts = useMemo(() => pinnedCharts.map(p => ({
+    ...p,
+    data: computeChartData(
+      applyFrozenFilters(rows, p.source),
+      p.chartType, p.labelCol, p.numericCols,
+      p.cfg?.agg || 'sum',
+      p.cfg?.sort || (['pie', 'funnel', 'treemap'].includes(p.chartType) ? 'value_desc' : 'none')
+    ),
+  })), [pinnedCharts, rows])
 
   const unpinChart = (id) => setPinnedCharts(prev => prev.filter(p => p.id !== id))
 
@@ -1046,7 +1095,7 @@ export default function App() {
 
         {/* Panel de gráficos anclados (fotos congeladas) */}
         {showPinned && (
-          <PinnedPanel pinned={pinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} onGoToSource={goToPinnedSource} />
+          <PinnedPanel pinned={livePinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} onGoToSource={goToPinnedSource} />
         )}
       </div>
 
