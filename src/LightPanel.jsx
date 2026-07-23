@@ -6,7 +6,7 @@ const DEFAULT_H = 380
 const MIN_W     = 320
 const MIN_H     = 200
 
-export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, initialPos, onDragEnd, zIndex, onFocus }) {
+export default function LightPanel({ title, icon, children, onClose, onExpand, onConfig, onPin, initialPos, onDragEnd, zIndex, onFocus }) {
   const panelRef = useRef(null)
   const ghostRef = useRef(null)
   const pos      = useRef(initialPos ?? { x: 60 + Math.random() * 200, y: 56 + Math.random() * 100 })
@@ -80,6 +80,9 @@ export default function LightPanel({ title, icon, children, onClose, onExpand, o
             )}
             {onExpand && (
               <button onMouseDown={e => e.stopPropagation()} onClick={onExpand} title="Pantalla completa">⤢</button>
+            )}
+            {onPin && (
+              <button onMouseDown={e => e.stopPropagation()} onClick={onPin} title="Anclar (congelar con el filtro actual)">📌</button>
             )}
             <button className="lp-close" onMouseDown={e => e.stopPropagation()} onClick={onClose} title="Cerrar">✕</button>
           </div>

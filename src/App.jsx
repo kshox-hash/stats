@@ -21,6 +21,8 @@ import ChartConfig, { PALETTES } from './components/ChartConfig'
 import ColumnReview from './components/ColumnReview'
 import SheetSelector from './components/SheetSelector'
 import DashboardPanel from './components/DashboardPanel'
+import PinnedChart from './components/PinnedChart'
+import PinnedPanel from './components/PinnedPanel'
 import { apiUrl } from './api'
 import './App.css'
 
@@ -206,6 +208,7 @@ const freshPage = () => ({ charts: [], chartTypes: {}, chartConfigs: {} })
 
 let pageCounter = 1
 let instanceCounter = 1
+let pinCounter = 1
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -254,6 +257,9 @@ export default function App() {
   const [showDashPanel, setShowDashPanel] = useState(false)
   const [globalTheme, setGlobalTheme]     = useState('default') // tema de color aplicado a todos los gráficos que no tengan paleta propia
   const [showThemePicker, setShowThemePicker] = useState(false)
+  const [pinnedCharts, setPinnedCharts] = useState([]) // gráficos "anclados": foto congelada con el filtro de cuando se anclaron
+  const [showPinned, setShowPinned]     = useState(false)
+  const [tableCollapsed, setTableCollapsed] = useState(false)
   const fileInputRef = useRef(null)
   const chartRefs    = useRef({})
   const mainRef      = useRef(null)
@@ -407,7 +413,7 @@ export default function App() {
 
   // ── Guardar / cargar dashboard completo ─────────────────────────────────────
   const currentDashboardConfig = () => ({
-    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme,
+    rows, fileName, pages, pageData, activePage, kpiAgg, kpiThresholds, globalTheme, pinnedCharts,
   })
 
   const loadDashboardConfig = (config) => {
@@ -429,6 +435,9 @@ export default function App() {
     setKpiAgg(config.kpiAgg || {})
     setKpiThresholds(config.kpiThresholds || {})
     setGlobalTheme(config.globalTheme || 'default')
+    setPinnedCharts(config.pinnedCharts || [])
+    const maxPin = Math.max(0, ...(config.pinnedCharts || []).map(p => parseInt(String(p.id).split('-').pop(), 10) || 0))
+    pinCounter = maxPin + 1
     setClickFilter(null)
     setSlicerFilters({})
     setRangeFilters({})
@@ -760,6 +769,18 @@ export default function App() {
     XLSX.writeFile(wb, `grafico-${instanceId}.xlsx`)
   }
 
+  // ── Anclar un gráfico (foto congelada con el filtro actual, no reacciona a filtros nuevos) ──
+  const pinChart = (instanceId) => {
+    const { chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data } = getChartSnapshot(instanceId)
+    if (!data.length) return
+    const id = `pin-${pinCounter++}`
+    const title = cfg.title || CHART_META[chartType]
+    setPinnedCharts(prev => [...prev, { id, chartType, cfg, labelCol: lc, numericCols: ncs, valueCol, data, title }])
+    setShowPinned(true)
+  }
+
+  const unpinChart = (id) => setPinnedCharts(prev => prev.filter(p => p.id !== id))
+
   // ── Compartir / incrustar un gráfico ────────────────────────────────────────
   const [shareState, setShareState] = useState(null) // { loading, error, url }
 
@@ -816,6 +837,9 @@ export default function App() {
 
         <div className="header-actions">
           <button className="hbtn" onClick={() => setShowDashPanel(true)} title="Guardar o cargar un dashboard">💾 Dashboards</button>
+          <button className={`hbtn ${showPinned ? 'active' : ''}`} onClick={() => setShowPinned(v => !v)} title="Gráficos anclados (fotos congeladas con su filtro)">
+            📌 Anclados {pinnedCharts.length > 0 && <span className="filter-count">{pinnedCharts.length}</span>}
+          </button>
           {rows.length > 0 && (
             <>
               <div style={{ position: 'relative' }}>
@@ -909,12 +933,16 @@ export default function App() {
               {/* Tabla */}
               <div className="sheet-wrap">
                 <div className="sheet-bar">
+                  <button className="table-collapse-btn" onClick={() => setTableCollapsed(v => !v)}
+                    title={tableCollapsed ? 'Mostrar tabla' : 'Ocultar tabla'}>
+                    {tableCollapsed ? '▸' : '▾'}
+                  </button>
                   <span className="sheet-info">
                     {isFiltered
                       ? <><span className="row-count filtered">{filteredRows.length}</span> de {rows.length} filas</>
                       : <>{rows.length} filas · {columns.length} columnas</>
                     }
-                    <span className="sheet-hint">Doble clic en un encabezado o celda para editar</span>
+                    {!tableCollapsed && <span className="sheet-hint">Doble clic en un encabezado o celda para editar</span>}
                   </span>
                   {tableMsg && <span className="table-msg-inline">{tableMsg}</span>}
                   {isFiltered && (
@@ -924,7 +952,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <div className="table-wrap">
+                {!tableCollapsed && <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
@@ -967,7 +995,7 @@ export default function App() {
                   </table>
                   {filteredRows.length === 0 && <p className="table-more">Sin resultados</p>}
                   {filteredRows.length > 500 && <p className="table-more">Mostrando 500 de {filteredRows.length}</p>}
-                </div>
+                </div>}
               </div>
             </div>
           )}
@@ -991,6 +1019,11 @@ export default function App() {
             onClearClick={() => setClickFilter(null)}
           />
         )}
+
+        {/* Panel de gráficos anclados (fotos congeladas) */}
+        {showPinned && (
+          <PinnedPanel pinned={pinnedCharts} onUnpin={unpinChart} onClose={() => setShowPinned(false)} />
+        )}
       </div>
 
       {/* ── Tab Bar ── */}
@@ -1008,6 +1041,7 @@ export default function App() {
             onClose={() => removeChart(instanceId)}
             onExpand={() => setExpanded(instanceId)}
             onConfig={() => setConfigOpen(instanceId)}
+            onPin={() => pinChart(instanceId)}
             initialPos={panelPos[instanceId]}
             onDragEnd={p => setPanelPos(prev => ({ ...prev, [instanceId]: p }))}
             zIndex={getZIndex(instanceId)}
@@ -1082,6 +1116,7 @@ export default function App() {
               <div className="card-actions">
                 <button className="action-btn" onClick={() => downloadChart(expanded)}>↓ PNG</button>
                 <button className="action-btn" onClick={() => exportChartData(expanded)}>↓ Datos</button>
+                <button className="action-btn" onClick={() => pinChart(expanded)}>📌 Anclar</button>
                 <button className="action-btn" onClick={() => shareChart(expanded)}>🔗 Compartir</button>
                 <button className="action-btn close" onClick={() => setExpanded(null)}>✕</button>
               </div>
